@@ -1,0 +1,9 @@
+export const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+export const START_HOUR = 6;         // timetable start hour
+export const END_HOUR = 22;          // timetable end hour
+export const SLOTS_PER_HOUR = 2;     // 30-minute slots
+export const TOTAL_COLS = (END_HOUR - START_HOUR) * SLOTS_PER_HOUR;
+export const ROW_HEIGHT = 36;
+export const DAY_LABEL_COL_WIDTH = 120;
+export const ROOM_LABEL_COL_WIDTH = 120;
+export const TIME_HEADER_HEIGHT = 40;
