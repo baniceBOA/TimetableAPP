@@ -17,7 +17,7 @@ export function makeTheme(opts = {}) {
     backgroundPaper   = mode === "dark" ? "#0B1220" : "#FFFFFF",
     textPrimary       = mode === "dark" ? "#E5E7EB" : "#0B1220",
     textSecondary     = mode === "dark" ? "#94A3B8" : "#4B5563",
-    borderRadius = 12,
+    borderRadius = 4,
     typographyScale = 1.0,
   } = opts;
 
