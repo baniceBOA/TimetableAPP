@@ -12,18 +12,23 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import BrushIcon from "@mui/icons-material/Brush";
 import DownloadIcon from "@mui/icons-material/Download";
 import UploadIcon from "@mui/icons-material/Upload";
+import { PaddingOutlined } from "@mui/icons-material";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import TuneIcon from "@mui/icons-material/Tune";
 import RuleIcon from "@mui/icons-material/Rule";
+import AccessTimeIcon from "@mui/icons-material/AccessTime";
 
 export default function SettingsDialog({
   open,
   onClose,
+  onOpenTheme,
   onOpenBranding,     // fn
   onOpenExportOpts,   // fn
   onOpenBackup,       // fn
   onOpenReset,        // fn
   onOpenLimits,       // fn
+  onOpenFreeSlots,    // fn
+  onOpenTimeConstraints, // fn
 }) {
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -37,6 +42,19 @@ export default function SettingsDialog({
 
         <List dense>
           {/* Branding */}
+          {/* Time constraints */}
+          <ListItem disablePadding>
+           <ListItemButton onClick={() => { onOpenTheme?.(); onClose?.(); }}>
+             <AccessTimeIcon fontSize="small" style={{ marginRight: 8 }} />
+             <ListItemText primary="Theme" secondary="Change the theme to your liking" />
+           </ListItemButton>
+          </ListItem>
+          <ListItem disablePadding>
+           <ListItemButton onClick={() => { onOpenTimeConstraints?.(); onClose?.(); }}>
+             <AccessTimeIcon fontSize="small" style={{ marginRight: 8 }} />
+             <ListItemText primary="Time constraints" secondary="Teacher unavailability & subject time windows" />
+           </ListItemButton>
+          </ListItem>
           {/* Weekly limits toggles */}
          <ListItem disablePadding>
            <ListItemButton onClick={() => { onOpenLimits?.(); onClose?.(); }}>
@@ -79,6 +97,16 @@ export default function SettingsDialog({
               <ListItemText
                 primary="Backup data"
                 secondary="Export or restore app data (JSON)"
+              />
+            </ListItemButton>
+          </ListItem>
+          {/* Free Slots */}
+          <ListItem disablePadding>
+            <ListItemButton onClick={() => { onOpenFreeSlots?.(); onClose?.(); }}>
+              <PaddingOutlined fontSize="small" style={{ marginRight: 8 }} />
+              <ListItemText
+                primary="Free Slots "
+                secondary="show the available space a lesson can be sloted"
               />
             </ListItemButton>
           </ListItem>

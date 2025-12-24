@@ -23,12 +23,19 @@ import MeetingRoomIcon from "@mui/icons-material/MeetingRoom";
 import { useContext, useState, useEffect, useMemo, useRef } from "react";
 import { nanoid } from "nanoid";
 
-
+import { ThemeProvider, CssBaseline } from "@mui/material";
+import { makeTheme } from "./theme/makeTheme";
+//import TimetableMUI from "./components/TimetableMUI.jsx";
+//import Timetable from "./components/Timetable";
+import Timetable from "./components/TimetableMD3.jsx";
+import ThemeModal from "./components/modals/ThemeModal.jsx";
 import AddClassModal from "./components/modals/AddClassModal.jsx";
 import BreaksEditorModal from "./components/modals/BreaksEditorModal.jsx";
 import TeacherConstrainModal from "./components/modals/TeacherConstrainModal.jsx"
+import ConstraintErrorBar from "./components/ConstraintErrorBar.jsx";
+import { getConstraintMessages } from "./utils/constraintMessages.js";
 import HeaderMD3 from "./components/HeaderMD3";
-import Timetable from "./components/Timetable";
+
 import ManageTeachers from "./components/ManageTeachers";
 import ManageRooms from "./components/ManageRooms";
 import BrandingModal from "./components/BrandingModal";
@@ -42,6 +49,8 @@ import { randomNiceColor } from "./utils/colors";
 import { ExportProgressContext } from "./contexts/ExportProgressContext.jsx";
 import SearchDialog from "./components/SearchDialog.jsx";
 import { countEventsBySubject, summarizeEvents } from "./utils/stats";
+import TimeConstraintsModal from "./components/modals/TimeConstraintsModal.jsx";
+import { checkTeacherTime, checkSubjectTime, filterSuggestionsByTime } from "./utils/timeConstraints.js";
 
 // setting modals 
 import SettingsDialog from "./components/SettingsDialog.jsx";
@@ -65,6 +74,7 @@ import {
   wouldRoomExceed, wouldTeacherExceed
 } from "./utils/constraints";
 import ConstrainEditorModal from "./components/modals/ConstrainEditorModal.jsx";
+import FreeSlotsToggleModal from "./components/modals/FreeSlotsToggleModal.jsx";
 
 const INITIAL_TEACHERS = [
   { id: "t-1", name: "Ms. Ahmed", areas: ["Mathematics", "Physics"], color: "#59c173" },
@@ -119,10 +129,34 @@ export default function App(){
   // --- Add state to keep the last auto-fix snapshot ---
   const [undoBanner, setUndoBanner] = useState(null); 
 
+  const [editErrors, setEditErrors] = useState([]);
+  const [editBarOpen, setEditBarOpen] = useState(false);
+
+  const DEFAULT_THEME_OPTIONS = {
+  mode: "dark",
+  primary: "#2D8CFF",
+  secondary: "#59C173",
+  backgroundDefault: "#0F172A",
+  backgroundPaper: "#0B1220",
+  textPrimary: "#E5E7EB",
+  textSecondary: "#94A3B8",
+  borderRadius: 12,
+  typographyScale: 1.0,
+};
+const [themeOptions, setThemeOptions] = useLocalStorage("themeOptions", DEFAULT_THEME_OPTIONS);
+const theme = makeTheme(themeOptions);
+
+const [themeOpen, setThemeOpen] = useState(false);
+
   const [limitsEnabled, setLimitsEnabled] = useLocalStorage("limitsEnabled", {
   teacherLimits: true,  // toggle Teacher × Subject weekly limits
   roomLimits: true,     // toggle Room × Subject weekly limits
 });
+  const [timeConstraints, setTimeConstraints] = useLocalStorage("timeConstraints", {
+   teacherUnavailable: [],
+   subjectWindows: []
+ });
+  const [timeConstraintsOpen, setTimeConstraintsOpen] = useState(false);
 
 
   const [navOpen, setNavOpen] = useState(false);
@@ -144,6 +178,8 @@ export default function App(){
   const [backupOpen, setBackupOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
   const [addClassOpen, setAddClassOpen] = useState(false);
+  const [freeSlotsEnabled, setFreeSlotsEnabled] = useLocalStorage("freeSlotsEnabled", true);
+  const [freeSlotsOpen, setFreeSlotsOpen] = useState(false);
 
   // Export defaults (stored)
   const [exportOptions, setExportOptions] = useLocalStorage("exportOptions", {
@@ -212,24 +248,18 @@ export default function App(){
   function handleDelete(id){ setEvents(list => list.filter(e => e.id!==id)); }
   function handleCreateFromGrid(initial){ setEvents(list => [...list, { id:nanoid(), ...initial, color: randomNiceColor() }]); }
   function handleUpdate(id, next){ 
-    const hasSubject=(next.area||'').trim().length>0; 
-    // roooms 
-    if( limitsEnabled.roomLimits && hasSubject && next.roomId){ 
-      if(wouldRoomExceed(constraints, events, next, id)){ 
-        const c = findRoomConstraint(constraints, next.roomId, next.area); 
-        const roomName = rooms.find(r=> r.id===c?.roomId)?.name || c?.roomId || ''; 
-        alert(`Weekly room limit exceeded: ${c?.area} in ${roomName} is limited to ${c?.maxPerWeek} lesson(s) per week.`); 
-        return; 
-      } } 
-    if(limitsEnabled.teacherLimits && hasSubject && next.teacherId){ 
-      if(wouldTeacherExceed(teacherConstraints, events, next, id)){
-         const c = findTeacherConstraint(teacherConstraints, next.teacherId, next.area); 
-         const teacherName = teachers.find(t=> t.id===c?.teacherId)?.name || c?.teacherId || ''; 
-         alert(`Weekly teacher limit exceeded: ${c?.area} for ${teacherName} is limited to ${c?.maxPerWeek} lesson(s) per week.`); 
-         return; 
-        } } 
+   const { blocked, messages } = getConstraintMessages({
+   nextEvent: { ...next, id },
+   state: { limitsEnabled, constraints, teacherConstraints, rooms, teachers, events, timeConstraints }
+ });
+ if (blocked) {
+   setEditErrors(messages);
+   setEditBarOpen(true);
+   return;
+ }
     setEvents(list => list.map(e => e.id===id? next: e)); 
   }
+  
 
   function addTeacher(t){ setTeachers(list => [...list, { ...t, id:nanoid() }]); }
   function updateTeacher(id, t){ setTeachers(list => list.map(x => x.id===id? { ...x, ...t }: x)); setEvents(list => list.map(e => e.teacherId===id? { ...e, color: t.color || e.color }: e)); }
@@ -349,7 +379,9 @@ for (const e of visibleEvents) {
     const teacherHit = limitsEnabled.teacherLimits && ev.teacherId && violatingTeacherKeys.has(`${ev.teacherId}::${a}`);
     if(roomHit && teacherHit) return 'limit-both-exceeded'; 
     if(roomHit) return 'limit-room-exceeded'; 
-    if(teacherHit) return 'limit-teacher-exceeded'; return ''; }
+    if(teacherHit) return 'limit-teacher-exceeded'; return '';
+    
+   }
   const [limitsNotice, setLimitsNotice] = useState(null);
 
   useEffect(() => {
@@ -468,6 +500,8 @@ useEffect(() => {
 
 
   return (
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
     <div className="app">
       <HeaderMD3 title={branding.schoolName || "Timetable"} onAddClass={openAddClass}  subtitle={view === 'timetable'? `Weekly schedule · ${visibleEventCount} event${visibleEventCount !== 1 ? 's' : ''}`: `${totalEventCount} event${totalEventCount !== 1 ? 's' : ''} total`} onOpenNav={openNav} onOpenSearch={openSearch} rightActions={[ {ariaLabel: 'Settings',icon: <SettingsIcon />,onClick: () => setSettingsOpen(true)},{ ariaLabel:'Branding', icon: branding.logoDataUrl? <img src={branding.logoDataUrl} alt="logo" style={{ height:24, borderRadius:4 }} />: null, onClick:()=> setShowBranding(true) }]} />
       {/* Side navigation drawer */}
@@ -838,11 +872,33 @@ useEffect(() => {
 
       {view === "timetable" && (
         <>
-        <div style={{ margin: '8px 0', fontSize: 12, color: 'var(--muted)' }}>
-          Showing {visibleEventCount} event{visibleEventCount !== 1 ? 's' : ''} (total: {totalEventCount})
-        </div>
-        <Timetable events={events} onEdit={()=>{}} onDelete={handleDelete} onUpdate={handleUpdate} teachers={teachers} rooms={rooms} onCreate={handleCreateFromGrid} activeTeacherId={teacherFilter} roomFilters={roomsFilter} subjectFilters={subjectFilter} breaks={breaks} getViolationClass={getViolationClass} />
-          </>
+          <div style={{ margin: '8px 0', fontSize: 12, color: 'var(--muted)' }}>
+            Showing {visibleEventCount} event{visibleEventCount !== 1 ? 's' : ''} (total: {totalEventCount})
+          </div>
+          <Timetable 
+            events={events}
+            breaks={breaks}
+            teachers={teachers}
+            rooms={rooms}
+            activeTeacherId={teacherFilter}
+            roomsFilters={roomsFilter}
+            subjectFilters={subjectFilter}
+            onEdit={(id) => {/* open edit modal (optional) */}}
+            onDelete={(id) => handleDelete(id)}
+            onUpdate={(id, next) => handleUpdate(id, next)}   // your validation runs here
+            onCreateFromGrid={({ dayIndex, start, end }) => {
+              // Prefill Add Class modal using the empty cell double-click
+              // e.g., setAddClassOpen(true); setDraft({ dayIndex, start, end })
+            }}
+            getViolationClass={getViolationClass}     // keep your weekly-limit + time rules highlighting
+            timeConstraints={timeConstraints}
+            limitsEnabled={limitsEnabled}
+            constraints={constraints}
+            teacherConstraints={teacherConstraints}
+            rowHeight={64}  // tune as preferred
+            overscan={3}
+           />
+        </>
       )}
 
       {view === "teachers" && (<ManageTeachers teachers={teachers} addTeacher={addTeacher} updateTeacher={updateTeacher} deleteTeacher={deleteTeacher} />)}
@@ -852,11 +908,37 @@ useEffect(() => {
       <SettingsDialog
   open={settingsOpen}
   onClose={() => setSettingsOpen(false)}
+  onOpenTheme={() => setThemeOpen(true)}
   onOpenBranding={() => setShowBranding(true)}
   onOpenExportOpts={() => setExportOptsOpen(true)}
   onOpenBackup={() => setBackupOpen(true)}
   onOpenReset={() => setResetOpen(true)}
   onOpenLimits={() => setLimitsModalOpen(true)}
+  onOpenFreeSlots={() => setFreeSlotsOpen(true)}
+  onOpenTimeConstraints={() => setTimeConstraintsOpen(true)}
+
+/>
+
+<ThemeModal
+  open={themeOpen}
+  onClose={() => setThemeOpen(false)}
+  value={themeOptions}
+  onSave={(next) => { setThemeOptions(next); setThemeOpen(false); }}
+/>
+
+< FreeSlotsToggleModal
+  open={freeSlotsOpen}
+  onClose={() => setFreeSlotsOpen(false)}
+  value={freeSlotsEnabled}
+  onSave={(enabled) => { setFreeSlotsEnabled(enabled); setFreeSlotsOpen(false); }}
+ />
+
+<TimeConstraintsModal
+  open={timeConstraintsOpen}
+  onClose={() => setTimeConstraintsOpen(false)}
+  teachers={teachers}
+  value={timeConstraints}
+  onSave={(next) => { setTimeConstraints(next); setTimeConstraintsOpen(false); }}
 />
 
 {/* Export options */}
@@ -938,6 +1020,7 @@ useEffect(() => {
     }
   }}
 />
+
   <AddClassModal
     open={addClassOpen}
     onClose={closeAddClass}
@@ -946,7 +1029,15 @@ useEffect(() => {
     rooms={rooms}
     events={events}
     limitsEnabled={limitsEnabled}
+    freeSlotsEnabled={freeSlotsEnabled}
+    timeConstraints={timeConstraints}
   />
+
+  <ConstraintErrorBar
+  open={editBarOpen}
+  onClose={() => setEditBarOpen(false)}
+  messages={editErrors}
+/>
       
       <SearchDialog
           open={searchOpen}
@@ -994,5 +1085,6 @@ useEffect(() => {
     />
         <ExportProgressModal />
     </div>
+    </ThemeProvider>
   );
 }

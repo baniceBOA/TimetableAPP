@@ -62,3 +62,7 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .print-modal-card{ width:min(1100px,94vw); max-height:90vh; background:var(--panel); border:1px solid var(--border); border-radius:12px; display:grid; grid-template-rows:auto 1fr; overflow:hidden; }
 .print-modal-header{ display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid var(--border); }
 .controls{ display:flex; gap:10px; align-items:center; }
+
+.event-wrapper.time-teacher-blocked { outline: 2px dashed #ef4444; } /* red */
+.event-wrapper.time-subject-blocked{ outline: 2px dashed #60a5fa; } /* blue */
+.event-wrapper.time-both-blocked   { outline: 2px dashed #f59e0b; } /* amber */

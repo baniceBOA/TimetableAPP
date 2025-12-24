@@ -1,4 +1,3 @@
-// src/components/modals/ThemeModal.jsx
 import * as React from "react";
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
@@ -22,10 +21,6 @@ import Stack from "@mui/material/Stack";
 import { ThemeProvider, CssBaseline } from "@mui/material";
 import { makeTheme } from "../../theme/makeTheme";
 
-/**
- * Theme customization modal with a built-in live preview.
- * The preview uses a temporary theme generated from the current form values.
- */
 export default function ThemeModal({ open, onClose, value, onSave }) {
   const defaults = {
     mode: "dark",
@@ -45,15 +40,11 @@ export default function ThemeModal({ open, onClose, value, onSave }) {
 
   React.useEffect(() => {
     if (open) setForm({ ...defaults, ...(value || {}) });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, value]);
 
-  const update = (key, val) => setForm((f) => ({ ...f, [key]: val }));
-
-  // Build a temporary preview theme based on current form values
+  const update = (key, val) => setForm(f => ({ ...f, [key]: val }));
   const previewTheme = React.useMemo(() => makeTheme(form), [form]);
 
-  // A compact utility cell for the mini timetable preview
   function TimetableCell({ label, highlight = false }) {
     return (
       <Box
@@ -79,7 +70,7 @@ export default function ThemeModal({ open, onClose, value, onSave }) {
       <DialogTitle>Theme customization</DialogTitle>
       <DialogContent>
         <Grid container spacing={2}>
-          {/* Controls */}
+          {/* Controls column */}
           <Grid item xs={12} md={6}>
             <FormGroup sx={{ mb: 2 }}>
               <FormControlLabel
@@ -93,70 +84,52 @@ export default function ThemeModal({ open, onClose, value, onSave }) {
               />
             </FormGroup>
 
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>
-              Palette
-            </Typography>
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>Palette</Typography>
             <div style={{ display: "grid", gap: 10 }}>
-              <label>
-                Primary color
+              <label>Primary color
                 <input
                   type="color"
-                  value={form.primary || "#2D8CFF"}
+                  value={form.primary || defaults.primary}
                   onChange={(e) => update("primary", e.target.value)}
                   style={{ marginLeft: 8 }}
                 />
               </label>
-              <label>
-                Secondary color
+              <label>Secondary color
                 <input
                   type="color"
-                  value={form.secondary || "#59C173"}
+                  value={form.secondary || defaults.secondary}
                   onChange={(e) => update("secondary", e.target.value)}
                   style={{ marginLeft: 8 }}
                 />
               </label>
-              <label>
-                Background (default)
+              <label>Background (default)
                 <input
                   type="color"
-                  value={
-                    form.backgroundDefault ||
-                    (form.mode === "light" ? "#F5F7FA" : "#0F172A")
-                  }
+                  value={form.backgroundDefault || defaults.backgroundDefault}
                   onChange={(e) => update("backgroundDefault", e.target.value)}
                   style={{ marginLeft: 8 }}
                 />
               </label>
-              <label>
-                Background (paper)
+              <label>Background (paper)
                 <input
                   type="color"
-                  value={
-                    form.backgroundPaper ||
-                    (form.mode === "light" ? "#FFFFFF" : "#0B1220")
-                  }
+                  value={form.backgroundPaper || defaults.backgroundPaper}
                   onChange={(e) => update("backgroundPaper", e.target.value)}
                   style={{ marginLeft: 8 }}
                 />
               </label>
-              <label>
-                Text (primary)
+              <label>Text (primary)
                 <input
                   type="color"
-                  value={
-                    form.textPrimary || (form.mode === "light" ? "#0B1220" : "#E5E7EB")
-                  }
+                  value={form.textPrimary || defaults.textPrimary}
                   onChange={(e) => update("textPrimary", e.target.value)}
                   style={{ marginLeft: 8 }}
                 />
               </label>
-              <label>
-                Text (secondary)
+              <label>Text (secondary)
                 <input
                   type="color"
-                  value={
-                    form.textSecondary || (form.mode === "light" ? "#4B5563" : "#94A3B8")
-                  }
+                  value={form.textSecondary || defaults.textSecondary}
                   onChange={(e) => update("textSecondary", e.target.value)}
                   style={{ marginLeft: 8 }}
                 />
@@ -165,9 +138,7 @@ export default function ThemeModal({ open, onClose, value, onSave }) {
 
             <Divider sx={{ my: 2 }} />
 
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>
-              Layout & Typography
-            </Typography>
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>Layout & Typography</Typography>
             <div style={{ display: "grid", gap: 16 }}>
               <div>
                 <Typography variant="body2">
@@ -175,9 +146,7 @@ export default function ThemeModal({ open, onClose, value, onSave }) {
                 </Typography>
                 <Slider
                   value={form.borderRadius ?? 12}
-                  min={0}
-                  max={20}
-                  step={1}
+                  min={0} max={20} step={1}
                   onChange={(_, v) => update("borderRadius", v)}
                 />
               </div>
@@ -187,9 +156,7 @@ export default function ThemeModal({ open, onClose, value, onSave }) {
                 </Typography>
                 <Slider
                   value={form.typographyScale ?? 1.0}
-                  min={0.85}
-                  max={1.3}
-                  step={0.01}
+                  min={0.85} max={1.3} step={0.01}
                   onChange={(_, v) => update("typographyScale", Number(v))}
                 />
               </div>
@@ -206,12 +173,12 @@ export default function ThemeModal({ open, onClose, value, onSave }) {
                 onChange={(e) => update("_previewSubtitle", e.target.value)}
               />
               <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                (Preview values simulate how text looks in the header.)
+                (Preview values simulate how the header text looks.)
               </Typography>
             </div>
           </Grid>
 
-          {/* Live Preview (isolated ThemeProvider) */}
+          {/* Live Preview column */}
           <Grid item xs={12} md={6}>
             <Typography variant="subtitle2" sx={{ mb: 1 }}>
               Live preview
@@ -258,7 +225,11 @@ export default function ThemeModal({ open, onClose, value, onSave }) {
                 {/* Body preview */}
                 <Box sx={{ p: 1.5 }}>
                   {/* Chips */}
-                  <Stack direction="row" spacing={1} sx={{ mb: 1.5, flexWrap: "wrap" }}>
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    sx={{ mb: 1.5, flexWrap: "wrap" }}
+                  >
                     <Chip label="Mathematics" color="primary" variant="outlined" />
                     <Chip label="Biology" color="secondary" variant="outlined" />
                     <Chip label="Physics" variant="outlined" />
@@ -274,7 +245,7 @@ export default function ThemeModal({ open, onClose, value, onSave }) {
                     })}
                   >
                     <Typography variant="body2" sx={{ mb: 1 }}>
-                      Panel preview (uses paper background & divider)
+                      Panel preview (paper background & divider)
                     </Typography>
                     <Stack direction="row" spacing={1}>
                       <Button variant="contained">Primary</Button>
@@ -307,13 +278,12 @@ export default function ThemeModal({ open, onClose, value, onSave }) {
                       <TimetableCell key={t} label={t} />
                     ))}
 
-                    {/* A couple of days */}
+                    {/* Two rows of sample days */}
                     {["Mon", "Tue"].map((d, rowIdx) => (
                       <React.Fragment key={d}>
                         <Box className="day" sx={{ display: "grid", placeItems: "center" }}>
                           {d}
                         </Box>
-                        {/* Cells with a couple of highlighted slots */}
                         {[0, 1, 2, 3, 4, 5].map((c) => (
                           <TimetableCell
                             key={`${d}-${c}`}
