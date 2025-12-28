@@ -10,7 +10,7 @@ import { createTheme } from "@mui/material/styles";
  */
 export function makeTheme(opts = {}) {
   const {
-    mode = "dark",
+    mode = "light",
     primary = "#2D8CFF",
     secondary = "#59C173",
     backgroundDefault = mode === "dark" ? "#0F172A" : "#F5F7FA",

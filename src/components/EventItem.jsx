@@ -8,6 +8,8 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import { useTheme } from '@mui/material/styles';
 import { useDraggable } from '@dnd-kit/core';
 
+import { useState } from 'react';
+
 export default function EventItem({
   event,
   startCol,
@@ -16,18 +18,43 @@ export default function EventItem({
   colWidth = 1,
   onEdit,
   onDelete,
+  onOpenDetails,
   conflict, // 'teacher' | 'room' | 'both' | null
 }) {
   const theme = useTheme();
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+
+  // Main body drag
+  const {
+    attributes: bodyAttrs,
+    listeners: bodyListeners,
+    setNodeRef: setBodyRef,
+    transform,
+    isDragging,
+  } = useDraggable({
     id: `ev-${event.id}`,
-    data: {
-      type: 'move',
-      event,
-      startCol,
-      endCol,
-      rowIdx,
-    },
+    data: { type: 'move', event, startCol, endCol, rowIdx },
+  });
+
+  // Left handle (resize start)
+  const {
+    attributes: leftAttrs,
+    listeners: leftListeners,
+    setNodeRef: setLeftRef,
+    isDragging: isLeftDragging,
+  } = useDraggable({
+    id: `ev-${event.id}-handle-start`,
+    data: { type: 'resize-start', event, startCol, endCol, rowIdx },
+  });
+
+  // Right handle (resize end)
+  const {
+    attributes: rightAttrs,
+    listeners: rightListeners,
+    setNodeRef: setRightRef,
+    isDragging: isRightDragging,
+  } = useDraggable({
+    id: `ev-${event.id}-handle-end`,
+    data: { type: 'resize-end', event, startCol, endCol, rowIdx },
   });
 
   const divider = (theme.vars || theme).palette.divider;
@@ -46,13 +73,23 @@ export default function EventItem({
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
     : null;
 
+  const handleCommon = {
+    width: 8,
+    borderRadius: 2,
+    bgcolor: 'rgba(255,255,255,0.65)',
+    cursor: 'ew-resize',
+    '&:hover': { bgcolor: 'rgba(255,255,255,0.9)' },
+    boxShadow: 1,
+  };
+
   return (
     <Paper
-      ref={setNodeRef}
+      ref={setBodyRef}
       variant="outlined"
       elevation={0}
-      {...listeners}
-      {...attributes}
+      {...bodyListeners}
+      {...bodyAttrs}
+      onClick={() => onOpenDetails?.(event)}
       sx={{
         gridColumn: `${startCol} / ${endCol}`,
         gridRow: rowIdx,
@@ -69,12 +106,38 @@ export default function EventItem({
         cursor: 'grab',
         ...(isDragging && { opacity: 0.9, cursor: 'grabbing' }),
         ...styleTransform,
-        // Ensure the event is above slots/breaks when dragged
         zIndex: isDragging ? 3 : 1,
-        // Smooth movement
         transition: isDragging ? undefined : 'box-shadow 120ms ease',
       }}
     >
+      {/* Left resize handle */}
+      <Box
+        ref={setLeftRef}
+        {...leftListeners}
+        {...leftAttrs}
+        sx={{
+          position: 'absolute',
+          left: 2, top: '50%', transform: 'translateY(-50%)',
+          ...handleCommon,
+          height: 18,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      />
+
+      {/* Right resize handle */}
+      <Box
+        ref={setRightRef}
+        {...rightListeners}
+        {...rightAttrs}
+        sx={{
+          position: 'absolute',
+          right: 2, top: '50%', transform: 'translateY(-50%)',
+          ...handleCommon,
+          height: 18,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      />
+
       <Typography variant="subtitle2" sx={{ fontWeight: 700, lineHeight: 1.25 }}>
         {event.title || 'Untitled'}
       </Typography>

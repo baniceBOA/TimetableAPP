@@ -6,7 +6,6 @@ import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import IconButton from "@mui/material/IconButton";
 import AddIcon from "@mui/icons-material/Add";
-import { FixedSizeList } from "react-window";
 import { List } from "react-window";
 
 //import List from "@mui/material/List";
@@ -301,6 +300,9 @@ export default function TimetableMUI({
       </Box>
     );
   }
+  const itemData = {
+    events, breaks, teachers, rooms
+  }
 
   return (
     <Box
@@ -335,14 +337,13 @@ export default function TimetableMUI({
         onDragEnd={onDragEnd}
       >
         <List
-          height={Math.min(480, rowHeight * Math.min(DAYS.length, 6))} // viewport height
-          itemCount={DAYS.length}
-          itemSize={rowHeight}
+          rowComponent={DayRow}
+          rowCount={DAYS.length}
+          rowHeight={rowHeight}
           overscanCount={overscan}
-          width="100%"
-        >
-          {DayRow}
-        </List>
+          style={{width:"100%", height:Math.min(480, rowHeight * Math.min(DAYS.length, 6))}}
+        />
+        
 
         {/* Drag overlay: keeps card visible while dragging */}
         <DragOverlay>

@@ -5,15 +5,13 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Toolbar from '@mui/material/Toolbar';
 import { useTheme } from '@mui/material/styles';
+import EventDialog from './EventDialog';
 
 import {
-  DndContext,
-  useSensors,
-  useSensor,
-  MouseSensor,
-  TouchSensor,
-  KeyboardSensor,
-  pointerWithin,
+  closestCenter,
+  DndContext, DragOverlay,
+  useSensors, useSensor, MouseSensor, TouchSensor, KeyboardSensor,
+  rectIntersection,
 } from '@dnd-kit/core';
 
 import DroppableSlot from './DroppableSlot';
@@ -24,6 +22,10 @@ import {
   ROW_HEIGHT, DAY_LABEL_COL_WIDTH, ROOM_LABEL_COL_WIDTH, TIME_HEADER_HEIGHT
 } from '../constants';
 import { hourLabel, overlaps, timeToCol, colToTime } from '../utils/time';
+
+
+
+
 
 export default function Timetable({
   events, onEdit, onDelete, onUpdate,
@@ -45,6 +47,23 @@ export default function Timetable({
     const sel = new Set(roomFilters);
     return rooms.filter(r => sel.has(r.id));
   }, [rooms, roomFilters]);
+
+  const [detailsOpen, setDetailsOpen] = useState(false);
+const [detailsEvent, setDetailsEvent] = useState(null);
+
+
+function openDetails(ev) {
+  // enrich with labels if you want
+  const t = ev.teacherId ? teacherById.get(ev.teacherId) : null;
+  const r = ev.roomId ? roomById.get(ev.roomId) : null;
+  setDetailsEvent({ ...ev, teacherName: t?.name || ev.teacherName || '', roomName: r?.name || ev.roomName || '' });
+  setDetailsOpen(true);
+}
+function closeDetails() {
+  setDetailsOpen(false);
+  setDetailsEvent(null);
+}
+
 
   const subjectOk = (ev) => {
     if (!subjectFilters || subjectFilters.length===0) return true;
@@ -170,27 +189,64 @@ export default function Timetable({
   );
 
   function handleDragEnd({ active, over }) {
-    if (!over) return;
-    const data = active.data?.current;
-    if (!data || data.type !== 'move') return;
+    console.debug('onDragEnd active:', active?.id, 'over:', over?.id);
+    console.debug('active data:', active.data?.current);
+  if (!over) return;
+  const data = active.data?.current;
+  if (!data) return;
 
-    const ev = data.event;
-    // droppable id format: slot:<dayIndex>:<roomId>:<col>
-    const [, dayStr, roomId, colStr] = String(over.id).split(':');
-    const dayIndex = Number(dayStr);
-    const startCol = Number(colStr);
+  const { type, event: ev } = data;
 
-    const originalStartCol = timeToCol(ev.start) + 1;
-    const originalEndCol = timeToCol(ev.end) + 1;
+  // droppable id format: slot:<dayIndex>:<roomId>:<col>
+  const parts = String(over.id).split(':'); // ["slot", "<day>", "<roomId>", "<col>"]
+  console.debug('parsed parts:', parts);
+  if (parts.length !== 4) return; // malformed id
+  const [, dayStr, roomId, colStr] = String(over.id).split(':');
+  const dayIndex = Number(dayStr);
+  const dropCol = Number(colStr);
+
+  if (Number.isNaN(dayIndex) || Number.isNaN(dropCol) || !roomId) return;
+
+
+  const earliestCol = 3;
+  const latestCol = 3 + TOTAL_COLS;
+
+  const originalStartCol = timeToCol(ev.start) + 1;
+  const originalEndCol = timeToCol(ev.end) + 1;
+  const minDurationSlots = 1; // at least one slot (adjust to your slot granularity)
+
+  if (type === 'move') {
     const durationSlots = originalEndCol - originalStartCol;
-
-    const clampedStartCol = Math.max(earliestCol, Math.min(latestCol - durationSlots, startCol));
+    const clampedStartCol = Math.max(earliestCol, Math.min(latestCol - durationSlots, dropCol));
     const newStart = colToTime(clampedStartCol - 1);
     const newEnd = colToTime(clampedStartCol - 1 + durationSlots);
 
-    const updated = { ...ev, dayIndex, roomId, start: newStart, end: newEnd };
-    onUpdate?.(updated);
+    onUpdate?.({ ...ev, dayIndex, roomId, start: newStart, end: newEnd });
+    return;
   }
+
+  if (type === 'resize-start') {
+    // New start cannot cross or equal end; must stay within bounds
+    const maxStartCol = (originalEndCol - minDurationSlots);
+    const clampedStartCol = Math.max(earliestCol, Math.min(maxStartCol, dropCol));
+
+    const newStart = colToTime(clampedStartCol - 1);
+    const newEnd = ev.end; // end stays the same
+    onUpdate?.({ ...ev, dayIndex: ev.dayIndex, roomId: ev.roomId, start: newStart, end: newEnd });
+    return;
+  }
+
+  if (type === 'resize-end') {
+    // New end cannot cross or equal start; must stay within bounds
+    const minEndCol = (originalStartCol + minDurationSlots);
+    const clampedEndCol = Math.max(minEndCol, Math.min(latestCol, dropCol));
+
+    const newStart = ev.start; // start stays the same
+    const newEnd = colToTime(clampedEndCol - 1);
+    onUpdate?.({ ...ev, dayIndex: ev.dayIndex, roomId: ev.roomId, start: newStart, end: newEnd });
+    return;
+  }
+}
 
   // Theme tokens
   const bgDefault = (theme.vars || theme).palette.background.default;
@@ -237,7 +293,8 @@ export default function Timetable({
       </Box>
 
       {/* Body (grid) */}
-      <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragEnd={handleDragEnd}>
+      <DndContext sensors={sensors} collisionDetection={rectIntersection} onDragEnd={handleDragEnd}>
+        
         <Box
           ref={gridRef}
           className="grid-body"
@@ -296,7 +353,8 @@ export default function Timetable({
             Array.from({ length: totalRows }, (_, r)=> {
               const dayIndex = Math.floor(r / visibleRooms.length);
               const roomIndex = r % visibleRooms.length;
-              const roomId = visibleRooms[roomIndex]?.id;
+              const roomIdRaw = visibleRooms[roomIndex]?.id;
+              const roomId = roomIdRaw != null ? String(roomIdRaw) : '';
               const col = c + 3; // offset after labels
               const droppableId = `slot:${dayIndex}:${roomId}:${col}`;
               const isHour = c % SLOTS_PER_HOUR === 0;
@@ -387,6 +445,7 @@ export default function Timetable({
                     onEdit={onEdit}
                     onDelete={onDelete}
                     conflict={conflict}
+                    onOpenDetails={openDetails}
                   />
                 </Box>
               );
@@ -409,6 +468,13 @@ export default function Timetable({
           )}
         </Box>
       </DndContext>
+      <EventDialog
+  open={detailsOpen}
+  event={detailsEvent}
+  onClose={closeDetails}
+  onEdit={onEdit}
+  onDelete={onDelete}
+/>
     </Box>
   );
 }

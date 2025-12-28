@@ -25,9 +25,9 @@ import { nanoid } from "nanoid";
 
 import { ThemeProvider, CssBaseline } from "@mui/material";
 import { makeTheme } from "./theme/makeTheme";
-//import TimetableMUI from "./components/TimetableMUI.jsx";
+import TimetableMUI from "./components/TimetableMUI.jsx";
 //import Timetable from "./components/Timetable";
-import Timetable from "./components/TimetableMD3.jsx";
+//import Timetable from "./components/TimetableMD3.jsx";
 import ThemeModal from "./components/modals/ThemeModal.jsx";
 import AddClassModal from "./components/modals/AddClassModal.jsx";
 import BreaksEditorModal from "./components/modals/BreaksEditorModal.jsx";
@@ -875,12 +875,12 @@ useEffect(() => {
           <div style={{ margin: '8px 0', fontSize: 12, color: 'var(--muted)' }}>
             Showing {visibleEventCount} event{visibleEventCount !== 1 ? 's' : ''} (total: {totalEventCount})
           </div>
-          <Timetable 
+          <TimetableMUI 
             events={events}
             breaks={breaks}
             teachers={teachers}
             rooms={rooms}
-            activeTeacherId={teacherFilter}
+            teacherId={teacherFilter}
             roomsFilters={roomsFilter}
             subjectFilters={subjectFilter}
             onEdit={(id) => {/* open edit modal (optional) */}}
