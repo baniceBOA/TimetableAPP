@@ -15,6 +15,13 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import Switch from "@mui/material/Switch";
 import Alert from "@mui/material/Alert";
 import Autocomplete from "@mui/material/Autocomplete";
+import Paper from "@mui/material/Paper";
+import List from "@mui/material/List";
+import ListItem from "@mui/material/ListItem";
+import ListItemText from "@mui/material/ListItemText";
+import ListSubheader from "@mui/material/ListSubheader";
+import IconButton from "@mui/material/IconButton";
+import AddIcon from '@mui/icons-material/Add';
 
 //import { DAYS } from "../constants";
 import { useConfig } from "../../utils/configStore.js";
@@ -66,6 +73,7 @@ export default function AddClassModal({
     start: "09:00",
     end: "10:00",
     teacherId: teachers[0]?.id || "",
+    teacherIds: teachers[0]?.id ? [teachers[0].id] : [],
     roomId: rooms[0]?.id || "",
     classSize: "",
   });
@@ -83,6 +91,7 @@ export default function AddClassModal({
         start: "09:00",
         end: "10:00",
         teacherId: teachers[0]?.id || "",
+        teacherIds: teachers[0]?.id ? [teachers[0].id] : [],
         roomId: rooms[0]?.id || "",
         classSize: "",
       };
@@ -145,7 +154,7 @@ export default function AddClassModal({
     const len = isNaN(duration) ? 60 : Math.max(30, duration);
     const raw = suggestFreeSlots({
       events,
-      teacherId: form.teacherId || null,
+      teacherId: (Array.isArray(form.teacherIds) && form.teacherIds.length === 1) ? form.teacherIds[0] : (form.teacherId || null),
       roomId: form.roomId || null,
       dayIndex: form.dayIndex,
       classLenMins: len,
@@ -163,20 +172,18 @@ export default function AddClassModal({
 
   function save() {
     const title = form.title.trim();
-    if (!title) {
-      setErrors(["Title is required."]); setShowBar(true); return;
-    }
     if (!form.start || !form.end || form.start >= form.end) {
       setErrors(["Invalid time range (Start must be before End)."]); setShowBar(true); return;
     }
 
     const next = {
-      title,
+      title: title || (form.area || "").trim(),
       area: (form.area || "").trim(),
       dayIndex: Number(form.dayIndex),
       start: form.start,
       end: form.end,
-      teacherId: form.teacherId || "",
+      teacherId: (Array.isArray(form.teacherIds) && form.teacherIds.length > 0) ? form.teacherIds[0] : (form.teacherId || ""),
+      teacherIds: Array.isArray(form.teacherIds) && form.teacherIds.length > 0 ? form.teacherIds.slice() : undefined,
       roomId: form.roomId || "",
       classSize: Number(form.classSize || 0),
     };
@@ -236,11 +243,16 @@ export default function AddClassModal({
           </Stack>
 
           <Stack direction="row" spacing={1.25}>
-            <TextField select label="Teacher" value={form.teacherId} onChange={(e) => setForm((f) => ({ ...f, teacherId: e.target.value }))} sx={{ minWidth: 220 }}>
-              {teachers.map((t) => (
-                <MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>
-              ))}
-            </TextField>
+            <Autocomplete
+              multiple
+              options={teachers}
+              getOptionLabel={(t) => t.name}
+              value={teachers.filter(t => (form.teacherIds || []).includes(t.id))}
+              onChange={(_, v) => setForm((f) => ({ ...f, teacherIds: v.map(x => x.id), teacherId: v[0]?.id || "" }))}
+              renderInput={(params) => (
+                <TextField {...params} label="Teacher(s)" placeholder="Select one or more teachers" sx={{ minWidth: 220 }} />
+              )}
+            />
             <TextField select label="Room" value={form.roomId} onChange={(e) => setForm((f) => ({ ...f, roomId: e.target.value }))} sx={{ minWidth: 220 }}>
               {rooms.map((r) => (
                 <MenuItem key={r.id} value={r.id}>{r.name}</MenuItem>
@@ -253,17 +265,25 @@ export default function AddClassModal({
           <FormControlLabel control={<Switch checked={showSuggestions} onChange={(e) => setShowSuggestions(e.target.checked)} />} label="Show free slot suggestions" />
 
           {showSuggestions && suggestions.length > 0 && (
-            <div className="panel" style={{ marginTop: 8 }}>
-              <strong>Suggested free slots</strong>
-              <div className="list" style={{ marginTop: 8 }}>
+            <Paper variant="outlined" sx={{ mt: 1 }}>
+              <List dense subheader={<ListSubheader>Suggested free slots</ListSubheader>}>
                 {suggestions.map((s, idx) => (
-                  <div key={idx} className="list-item" style={{ justifyContent: "space-between" }}>
-                    <div className="muted small">{DAYS[s.dayIndex]} • {s.start}–{s.end}</div>
-                    <button onClick={() => setForm((f) => ({ ...f, dayIndex: s.dayIndex, start: s.start, end: s.end }))}>Use</button>
-                  </div>
+                  <ListItem
+                    key={idx}
+                    secondaryAction={
+                      <IconButton edge="end" aria-label="use" onClick={() => setForm((f) => ({ ...f, dayIndex: s.dayIndex, start: s.start, end: s.end }))}>
+                        <AddIcon />
+                      </IconButton>
+                    }
+                  >
+                    <ListItemText
+                      primary={`${DAYS[s.dayIndex]} • ${s.start}–${s.end}`}
+                      secondary={s.roomId ? (rooms.find(r => r.id === s.roomId)?.name || '') : null}
+                    />
+                  </ListItem>
                 ))}
-              </div>
-            </div>
+              </List>
+            </Paper>
           )}
         </Stack>
       </DialogContent>

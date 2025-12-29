@@ -1,5 +1,9 @@
 import * as React from "react";
 import Box from "@mui/material/Box";
+import Alert from '@mui/material/Alert';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import { useTheme } from '@mui/material/styles';
+import ScreenRotationIcon from '@mui/icons-material/ScreenRotation';
 import Typography from '@mui/material/Typography';
 import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
@@ -68,8 +72,14 @@ export default function TimetableMUI({
   const totalSlots = (endHour - startHour) * slotsPerHour;
   const minutesPerSlot = 60 / slotsPerHour;
 
+  const theme = useTheme();
+  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
+
   // Header hour labels
   const hours = React.useMemo(() => Array.from({ length: totalSlots }, (_, i) => slotLabel(i)), [totalSlots]);
+
+  // Responsive row height for small screens
+  const effectiveRowHeight = isSmallScreen ? Math.max(28, Math.round(rowHeight * 0.55)) : rowHeight;
 
   // --- Filters ---
   const visibleEvents = React.useMemo(() => {
@@ -279,13 +289,13 @@ export default function TimetableMUI({
     color: theme.palette.text.secondary,
     borderRight: `1px solid ${theme.palette.divider}`,
     bgcolor: theme.palette.background.paper,
-    height: rowHeight,
+    height: effectiveRowHeight,
   });
 
   const cellSx = (theme) => ({
     borderRight: `1px solid ${theme.palette.divider}`,
     borderBottom: `1px solid ${theme.palette.divider}`,
-    minHeight: rowHeight,
+    minHeight: effectiveRowHeight,
     position: "relative",
     display: "flex",
     alignItems: "stretch",
@@ -392,8 +402,10 @@ export default function TimetableMUI({
           return roomEvents.map((ev) => {
             const startCol = timeToCol(ev.start) + 1;
             const endCol = timeToCol(ev.end) + 1;
-            const t = teacherById.get(ev.teacherId);
-            const enriched = { ...ev, teacherName: t?.name || '' };
+            const teacherName = Array.isArray(ev.teacherIds) && ev.teacherIds.length > 0
+              ? ev.teacherIds.map(id => teacherById.get(id)?.name || id).join(', ')
+              : (teacherById.get(ev.teacherId)?.name || '');
+            const enriched = { ...ev, teacherName };
             return (
               <Box
                 key={`evt-${ev.id}`}
@@ -442,7 +454,7 @@ export default function TimetableMUI({
     listRef.current?.scrollToRow(targetRow, { align: "center" });
   }, [findTodayIndex, visibleRooms.length]);
 
-  const viewportHeight = Math.min(480, rowHeight * Math.min(DAYS.length, 6));
+  const viewportHeight = Math.min(480, effectiveRowHeight * Math.min(DAYS.length, 6));
 
   return (
     <Box
@@ -454,6 +466,13 @@ export default function TimetableMUI({
         overflow: "hidden",
       })}
     >
+      {/* Small screen hint */}
+      {isSmallScreen && (
+        <Alert severity="info" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <ScreenRotationIcon /> Rotate device for best experience (landscape).
+        </Alert>
+      )}
+
       {/* Header row: toolbar + time labels */}
       <Box
         sx={(theme) => ({
@@ -502,7 +521,7 @@ export default function TimetableMUI({
           listRef={listRef}
           rowComponent={DayRow}
           rowCount={totalRows}
-          rowHeight={rowHeight}
+          rowHeight={effectiveRowHeight}
           overscanCount={overscan}
           rowProps={{
               totalSlots,

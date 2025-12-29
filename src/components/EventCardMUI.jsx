@@ -65,6 +65,11 @@ export default function EventCardMUI({
           >
             {title}
           </Typography>
+          {event.teacherName && (
+            <Typography variant="caption" sx={{ opacity: 0.9 }} title={event.teacherName}>
+              {event.teacherName}
+            </Typography>
+          )}
           {roomName && (
             <Typography
               variant="caption"

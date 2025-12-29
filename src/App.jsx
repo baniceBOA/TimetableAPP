@@ -250,6 +250,7 @@ const [themeOpen, setThemeOpen] = useState(false);
       start,
       end,
       teacherId: defaultTeacherId,
+      teacherIds: defaultTeacherId ? [defaultTeacherId] : [],
       roomId: defaultRoomId,
       classSize: "",
     });
@@ -264,14 +265,16 @@ const [themeOpen, setThemeOpen] = useState(false);
 
   // save handler
   function saveNewClass(ev) {
+    // Ensure title auto-filled from subject if empty
+    const safe = { ...ev, title: (ev.title || "").trim() || ((ev.area || "").trim() || "") };
     if (editingEventId) {
       const id = editingEventId;
-      setEvents(list => list.map(e => e.id === id ? { id, ...ev, color: e.color || randomNiceColor() } : e));
+      setEvents(list => list.map(e => e.id === id ? { id, ...safe, color: e.color || randomNiceColor() } : e));
       setEditingEventId(null);
     } else {
       setEvents(list => [
         ...list,
-        { id: nanoid(), ...ev, color: randomNiceColor() }
+        { id: nanoid(), ...safe, color: randomNiceColor() }
       ]);
     }
     setAddClassOpen(false);
@@ -1158,7 +1161,10 @@ useEffect(() => {
         if (accepted && accepted.length) {
           setEvents(list => [
             ...list,
-            ...accepted.map(a => ({ id: nanoid(), ...a, color: randomNiceColor() })),
+            ...accepted.map(a => {
+              const title = (a.title || "").trim() || ((a.area || "").trim() || "");
+              return ({ id: nanoid(), ...a, title, color: randomNiceColor() });
+            }),
           ]);
         }
         if (rejected && rejected.length) {
@@ -1184,6 +1190,7 @@ useEffect(() => {
           start: ev.start,
           end: ev.end,
           teacherId: ev.teacherId || "",
+          teacherIds: Array.isArray(ev.teacherIds) && ev.teacherIds.length > 0 ? ev.teacherIds.slice() : (ev.teacherId ? [ev.teacherId] : []),
           roomId: ev.roomId || "",
           classSize: ev.classSize || "",
         });

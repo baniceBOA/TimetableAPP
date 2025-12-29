@@ -36,21 +36,30 @@ export function getConstraintMessages({
     msgs.push(cap.message || "Capacity exceeded for selected room.");
   }
 
-  // Time conflicts
-  const tConf = conflictsForTeacher(events, nextEvent.teacherId, nextEvent.dayIndex, nextEvent.start, nextEvent.end, nextEvent.id || null);
-  if (tConf.length) {
-    msgs.push(`Teacher conflict: already booked on ${dayName} ${nextEvent.start}–${nextEvent.end}.`);
+  // Time conflicts: handle one or more assigned teachers
+  const teacherIds = Array.isArray(nextEvent.teacherIds) && nextEvent.teacherIds.length > 0
+    ? nextEvent.teacherIds
+    : (nextEvent.teacherId ? [nextEvent.teacherId] : []);
+  for (const tid of teacherIds) {
+    const tConf = conflictsForTeacher(events, tid, nextEvent.dayIndex, nextEvent.start, nextEvent.end, nextEvent.id || null);
+    if (tConf.length) {
+      const teacherName = teachers.find(t => t.id === tid)?.name || tid;
+      msgs.push(`Teacher conflict: ${teacherName} already booked on ${dayName} ${nextEvent.start}–${nextEvent.end}.`);
+    }
   }
   const rConf = conflictsForRoom(events, nextEvent.roomId, nextEvent.dayIndex, nextEvent.start, nextEvent.end, nextEvent.id || null);
   if (rConf.length) {
     msgs.push(`Room conflict: already booked on ${dayName} ${nextEvent.start}–${nextEvent.end}.`);
   }
 
-  // Time-specific constraints (teacher unavailable)
-  const tBlock = checkTeacherTime(timeConstraints, nextEvent);
-  if (tBlock.blocked) {
-    const teacherName = teachers.find(t => t.id === nextEvent.teacherId)?.name || "Teacher";
-    msgs.push(`${teacherName} unavailable on ${dayName} ${tBlock.rule.start}–${tBlock.rule.end}${tBlock.rule.note ? ` • ${tBlock.rule.note}` : ""}.`);
+  // Time-specific constraints (teacher unavailable) - check each assigned teacher
+  for (const tid of teacherIds) {
+    const tmp = { ...nextEvent, teacherId: tid };
+    const tBlock = checkTeacherTime(timeConstraints, tmp);
+    if (tBlock.blocked) {
+      const teacherName = teachers.find(t => t.id === tid)?.name || "Teacher";
+      msgs.push(`${teacherName} unavailable on ${dayName} ${tBlock.rule.start}–${tBlock.rule.end}${tBlock.rule.note ? ` • ${tBlock.rule.note}` : ""}.`);
+    }
   }
 
   // Time-specific constraints (subject windows)
@@ -74,11 +83,14 @@ export function getConstraintMessages({
       msgs.push(`Weekly room limit exceeded: ${c?.area || nextEvent.area} in ${roomName} is limited to ${c?.maxPerWeek} /week.`);
     }
   }
-  if (limitsEnabled?.teacherLimits && hasSubject && nextEvent.teacherId) {
-    if (wouldTeacherExceed(teacherConstraints, events, nextEvent, nextEvent.id || null)) {
-      const c = findTeacherConstraint(teacherConstraints, nextEvent.teacherId, nextEvent.area);
-      const teacherName = teachers.find(t => t.id === c?.teacherId)?.name || c?.teacherId || "Teacher";
-      msgs.push(`Weekly teacher limit exceeded: ${c?.area || nextEvent.area} for ${teacherName} is limited to ${c?.maxPerWeek} /week.`);
+  if (limitsEnabled?.teacherLimits && hasSubject && teacherIds.length > 0) {
+    for (const tid of teacherIds) {
+      const tmp = { ...nextEvent, teacherId: tid };
+      if (wouldTeacherExceed(teacherConstraints, events, tmp, nextEvent.id || null)) {
+        const c = findTeacherConstraint(teacherConstraints, tid, nextEvent.area);
+        const teacherName = teachers.find(t => t.id === c?.teacherId)?.name || c?.teacherId || "Teacher";
+        msgs.push(`Weekly teacher limit exceeded: ${c?.area || nextEvent.area} for ${teacherName} is limited to ${c?.maxPerWeek} /week.`);
+      }
     }
   }
 
