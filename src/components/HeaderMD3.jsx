@@ -24,7 +24,7 @@ function useFilledOnScroll(threshold = 4) {
   return filled;
 }
 
-export default function HeaderMD3({ title = "Timetable", subtitle, onOpenNav, onOpenSearch,onAddClass, rightActions = [], centerTitle = false}) {
+export default function HeaderMD3({ title = "Timetable", subtitle, onOpenNav, onOpenSearch, onOpenFilters, onAddClass, rightActions = [], centerTitle = false}) {
   const filled = useFilledOnScroll();
   const { running, percent, label, requestCancel } = React.useContext(ExportProgressContext);
 
@@ -38,7 +38,7 @@ export default function HeaderMD3({ title = "Timetable", subtitle, onOpenNav, on
         </Box>
         <Stack direction="row" spacing={0.5} justifyContent="end" alignItems="center">
           <IconButton aria-label="Search" onClick={onOpenSearch} disabled={running}><SearchIcon /></IconButton>
-          <IconButton aria-label="Filters" disabled={running}><TuneIcon /></IconButton>
+          <IconButton aria-label="Filters" onClick={(e) => onOpenFilters?.(e.currentTarget)} disabled={running}><TuneIcon /></IconButton>
           <Button
             size="small"
             variant="contained"

@@ -6,6 +6,7 @@ import DialogActions from "@mui/material/DialogActions";
 import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
 import TextField from "@mui/material/TextField";
+import Autocomplete from '@mui/material/Autocomplete';
 import MenuItem from "@mui/material/MenuItem";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
@@ -17,6 +18,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import Typography from "@mui/material/Typography";
 import { DAYS } from "../../constants";
 import { nanoid } from "nanoid";
+import { useSubjects } from "../../utils/subjectsStore";
 
 export default function TimeConstraintsModal({
   open,
@@ -49,6 +51,7 @@ export default function TimeConstraintsModal({
     mode: "allow",
     note: ""
   });
+  const [storeSubjects, subjectsApi] = useSubjects();
 
   function addTeacherUnavailable() {
     if (!tForm.teacherId || tForm.start >= tForm.end) return;
@@ -63,6 +66,10 @@ export default function TimeConstraintsModal({
     if (!sForm.area.trim() || sForm.start >= sForm.end) return;
     const row = { id: nanoid(), ...sForm, area: sForm.area.trim(), dayIndex: Number(sForm.dayIndex) };
     setData(d => ({ ...d, subjectWindows: [...(d.subjectWindows || []), row] }));
+    // ensure subject exists in global subjects store
+    try {
+      if (subjectsApi && sForm.area && !storeSubjects.includes(sForm.area.trim())) subjectsApi.add(sForm.area.trim());
+    } catch (e) { /* ignore */ }
   }
   function delSubjectWindow(id) {
     setData(d => ({ ...d, subjectWindows: (d.subjectWindows || []).filter(x => x.id !== id) }));
@@ -131,7 +138,15 @@ export default function TimeConstraintsModal({
               If any <em>allow</em> windows exist for a day, lessons must fit fully inside one of them.
             </Typography>
             <Stack direction="row" spacing={1.25} sx={{ mb: 1.5, flexWrap: "wrap" }}>
-              <TextField label="Subject" value={sForm.area} onChange={(e) => setSForm(f => ({ ...f, area: e.target.value }))} sx={{ minWidth: 200 }} />
+              <Autocomplete
+                freeSolo
+                options={storeSubjects}
+                value={sForm.area}
+                onChange={(_, v) => setSForm(f => ({ ...f, area: v || "" }))}
+                renderInput={(params) => (
+                  <TextField {...params} label="Subject" placeholder={storeSubjects.length ? "Select or type a subject" : "Type a subject"} sx={{ minWidth: 200 }} />
+                )}
+              />
               <TextField select label="Day" sx={{ minWidth: 160 }} value={sForm.dayIndex} onChange={(e) => setSForm(f => ({ ...f, dayIndex: Number(e.target.value) }))}>
                 {DAYS.map((d, i) => <MenuItem key={d} value={i}>{d}</MenuItem>)}
               </TextField>

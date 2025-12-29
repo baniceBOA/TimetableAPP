@@ -29,6 +29,7 @@ export default function SettingsDialog({
   onOpenLimits,       // fn
   onOpenFreeSlots,    // fn
   onOpenTimeConstraints, // fn
+  onOpenConfig, // fn
 }) {
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -76,6 +77,16 @@ export default function SettingsDialog({
           </ListItem>
 
           <Divider sx={{ my: 0.5 }} />
+
+          <ListItem disablePadding>
+            <ListItemButton onClick={() => { onOpenConfig?.(); onClose?.(); }}>
+              <SettingsIcon fontSize="small" style={{ marginRight: 8 }} />
+              <ListItemText
+                primary="Timetable settings"
+                secondary="Days, hours, and slot granularity"
+              />
+            </ListItemButton>
+          </ListItem>
 
           {/* Export options */}
           <ListItem disablePadding>

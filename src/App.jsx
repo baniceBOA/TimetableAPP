@@ -10,6 +10,7 @@ import Box from "@mui/material/Box";
 import Collapse from "@mui/material/Collapse";
 import Checkbox from "@mui/material/Checkbox";
 import IconButton from "@mui/material/IconButton";
+import Popover from "@mui/material/Popover";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 
 import ExpandLess from "@mui/icons-material/ExpandLess";
@@ -20,7 +21,7 @@ import GridOnIcon from "@mui/icons-material/GridOn";
 import GroupsIcon from "@mui/icons-material/Groups";
 import MeetingRoomIcon from "@mui/icons-material/MeetingRoom";
 
-import { useContext, useState, useEffect, useMemo, useRef } from "react";
+import { useContext, useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { nanoid } from "nanoid";
 
 import { ThemeProvider, CssBaseline } from "@mui/material";
@@ -33,6 +34,8 @@ import AddClassModal from "./components/modals/AddClassModal.jsx";
 import BreaksEditorModal from "./components/modals/BreaksEditorModal.jsx";
 import TeacherConstrainModal from "./components/modals/TeacherConstrainModal.jsx"
 import ConstraintErrorBar from "./components/ConstraintErrorBar.jsx";
+import PrepopulateModal from "./components/PrepopulateModal.jsx";
+import EventDialog from "./components/EventDialog.jsx";
 import { getConstraintMessages } from "./utils/constraintMessages.js";
 import HeaderMD3 from "./components/HeaderMD3";
 
@@ -45,6 +48,7 @@ import ConstraintsEditor from "./components/ConstraintsEditor";
 import TeacherConstraintsEditor from "./components/TeacherConstraintsEditor";
 import { useLocalStorage } from "./hooks/useLocalStorage";
 import { getSubjects } from "./utils/subjects";
+import { useSubjects } from "./utils/subjectsStore"
 import { randomNiceColor } from "./utils/colors";
 import { ExportProgressContext } from "./contexts/ExportProgressContext.jsx";
 import SearchDialog from "./components/SearchDialog.jsx";
@@ -54,6 +58,7 @@ import { checkTeacherTime, checkSubjectTime, filterSuggestionsByTime } from "./u
 
 // setting modals 
 import SettingsDialog from "./components/SettingsDialog.jsx";
+import ConfigModal from "./components/ConfigModal.jsx";
 import ExportOptionsModal from "./components/modals/ExportOptionsModal.jsx";
 import DataBackupModal from "./components/modals/DataBackupModal.jsx";
 import ResetConfirmModal from "./components/modals/ResetConfirmModal.jsx";
@@ -163,6 +168,10 @@ const [themeOpen, setThemeOpen] = useState(false);
   const [expOpen, setExpOpen] = useState(true);        // Exports submenu
   const [roomsOpen, setRoomsOpen] = useState(false);   // Room filters submenu
   const [subjectsOpen, setSubjectsOpen] = useState(false); // Subject filters submenu
+  const [prepopulateOpen, setPrepopulateOpen] = useState(false);
+  const [eventDialogOpen, setEventDialogOpen] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [editingEventId, setEditingEventId] = useState(null);
 
   const [searchOpen, setSearchOpen] = useState(false);
 
@@ -178,6 +187,7 @@ const [themeOpen, setThemeOpen] = useState(false);
   const [backupOpen, setBackupOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
   const [addClassOpen, setAddClassOpen] = useState(false);
+  const [configOpen, setConfigOpen] = useState(false);
   const [freeSlotsEnabled, setFreeSlotsEnabled] = useLocalStorage("freeSlotsEnabled", true);
   const [freeSlotsOpen, setFreeSlotsOpen] = useState(false);
 
@@ -190,6 +200,9 @@ const [themeOpen, setThemeOpen] = useState(false);
       compact: true,
     });
 
+    // new Subject Store
+    const [StoreSubjects] = useSubjects();
+
   function openTeacherConstrain(){setTeacherConstraintsModalOpen(true);}
   function closeTeacherConstrain(){setTeacherConstraintsModalOpen(false);}
   
@@ -198,6 +211,21 @@ const [themeOpen, setThemeOpen] = useState(false);
 
   function openBreaksModal(){ setBreaksModalOpen(true); }
   function closeBreaksModal(){ setBreaksModalOpen(false); }
+  function openPrepopulate(){ setPrepopulateOpen(true); }
+  function closePrepopulate(){ setPrepopulateOpen(false); }
+  function openEventDialogFor(id) {
+    const ev = events.find(e => e.id === id);
+    if (!ev) return;
+    const teacher = teachers.find(t => t.id === ev.teacherId);
+    const room = rooms.find(r => r.id === ev.roomId);
+    setSelectedEvent({
+      ...ev,
+      teacherName: teacher?.name || "",
+      roomName: room?.name || "",
+      dayLabel: typeof ev.dayIndex === 'number' ? (DAYS?.[ev.dayIndex] ?? ev.dayIndex) : undefined,
+    });
+    setEventDialogOpen(true);
+  }
 
   function clearUndoBanner() {
   setUndoBanner((b) => {
@@ -206,19 +234,48 @@ const [themeOpen, setThemeOpen] = useState(false);
   });
 }
 
+
+// add from Grid
+  const [modalInital, setModalInitial] = useState(null)
+
+  const handleCreateFromGrid = useCallback(({ dayIndex, start, end }) => {
+    // Prefill teacher/room (optional logic)
+    const defaultTeacherId = teacherFilter || teachers[0]?.id || "";
+    const defaultRoomId = roomsFilter[0] || rooms[0]?.id || "";
+
+    setModalInitial({
+      title: "",
+      area: "",
+      dayIndex,
+      start,
+      end,
+      teacherId: defaultTeacherId,
+      roomId: defaultRoomId,
+      classSize: "",
+    });
+    setAddClassOpen(true);
+  }, [teacherFilter, roomsFilter, teachers, rooms]);
+
   const prevLimitsRef = useRef(limitsEnabled);
 
   // open from header
   function openAddClass() { setAddClassOpen(true); }
-  function closeAddClass() { setAddClassOpen(false); }
+  function closeAddClass() { setAddClassOpen(false); setModalInitial(null); }
 
   // save handler
   function saveNewClass(ev) {
-    setEvents(list => [
-      ...list,
-      { id: nanoid(), ...ev, color: randomNiceColor() }
-    ]);
+    if (editingEventId) {
+      const id = editingEventId;
+      setEvents(list => list.map(e => e.id === id ? { id, ...ev, color: e.color || randomNiceColor() } : e));
+      setEditingEventId(null);
+    } else {
+      setEvents(list => [
+        ...list,
+        { id: nanoid(), ...ev, color: randomNiceColor() }
+      ]);
+    }
     setAddClassOpen(false);
+    setModalInitial(null);
   }
 
   const orientationFrom = (check) => (check || exportOptions.landscapeDefault) ? 'landscape' : 'portrait';
@@ -230,6 +287,9 @@ const [themeOpen, setThemeOpen] = useState(false);
 
   const openNav = () => setNavOpen(true);
   const closeNav = () => setNavOpen(false);
+  const [filtersAnchor, setFiltersAnchor] = useState(null);
+  const openFilters = (anchor) => setFiltersAnchor(anchor);
+  const closeFilters = () => setFiltersAnchor(null);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -246,7 +306,7 @@ const [themeOpen, setThemeOpen] = useState(false);
   function deleteBreak(id){ setBreaks(list => list.filter(x => x.id!==id)); }
 
   function handleDelete(id){ setEvents(list => list.filter(e => e.id!==id)); }
-  function handleCreateFromGrid(initial){ setEvents(list => [...list, { id:nanoid(), ...initial, color: randomNiceColor() }]); }
+  //function handleCreateFromGrid(initial){ setEvents(list => [...list, { id:nanoid(), ...initial, color: randomNiceColor() }]); }
   function handleUpdate(id, next){ 
    const { blocked, messages } = getConstraintMessages({
    nextEvent: { ...next, id },
@@ -503,7 +563,7 @@ useEffect(() => {
     <ThemeProvider theme={theme}>
       <CssBaseline />
     <div className="app">
-      <HeaderMD3 title={branding.schoolName || "Timetable"} onAddClass={openAddClass}  subtitle={view === 'timetable'? `Weekly schedule · ${visibleEventCount} event${visibleEventCount !== 1 ? 's' : ''}`: `${totalEventCount} event${totalEventCount !== 1 ? 's' : ''} total`} onOpenNav={openNav} onOpenSearch={openSearch} rightActions={[ {ariaLabel: 'Settings',icon: <SettingsIcon />,onClick: () => setSettingsOpen(true)},{ ariaLabel:'Branding', icon: branding.logoDataUrl? <img src={branding.logoDataUrl} alt="logo" style={{ height:24, borderRadius:4 }} />: null, onClick:()=> setShowBranding(true) }]} />
+      <HeaderMD3 title={branding.schoolName || "Timetable"} onAddClass={openAddClass}  subtitle={view === 'timetable'? `Weekly schedule · ${visibleEventCount} event${visibleEventCount !== 1 ? 's' : ''}`: `${totalEventCount} event${totalEventCount !== 1 ? 's' : ''} total`} onOpenNav={openNav} onOpenSearch={openSearch} onOpenFilters={openFilters} rightActions={[ {ariaLabel: 'Settings',icon: <SettingsIcon />,onClick: () => setSettingsOpen(true)},{ ariaLabel:'Branding', icon: branding.logoDataUrl? <img src={branding.logoDataUrl} alt="logo" style={{ height:24, borderRadius:4 }} />: null, onClick:()=> setShowBranding(true) }]} />
       {/* Side navigation drawer */}
       <Drawer anchor="left" open={navOpen} onClose={closeNav}>
   <Box sx={{ width: 320 }} role="presentation">
@@ -670,14 +730,24 @@ useEffect(() => {
       subheader={<ListSubheader component="div">Filters</ListSubheader>}
     >
       <ListItem disablePadding>
-      <ListItemButton onClick={() => { openBreaksModal(); closeNav(); }}>
-        <CalendarTodayIcon fontSize="small" style={{ marginRight: 8 }} />
-        <ListItemText
-          primary="Breaks editor"
-          secondary="Create or remove day‑wide breaks"
-        />
-      </ListItemButton>
-    </ListItem>
+        <ListItemButton onClick={() => { openBreaksModal(); closeNav(); }}>
+          <CalendarTodayIcon fontSize="small" style={{ marginRight: 8 }} />
+          <ListItemText
+            primary="Breaks editor"
+            secondary="Create or remove day‑wide breaks"
+          />
+        </ListItemButton>
+      </ListItem>
+
+      <ListItem disablePadding>
+        <ListItemButton onClick={() => { openPrepopulate(); closeNav(); }}>
+          <GridOnIcon fontSize="small" style={{ marginRight: 8 }} />
+          <ListItemText
+            primary="Prepopulate"
+            secondary="Auto-fill multiple lessons"
+          />
+        </ListItemButton>
+      </ListItem>
     { /* Constrain editos */}
     <ListItem disablePadding>
       <ListItemButton onClick={() => { openconstrainModal(); closeNav(); }}>
@@ -808,21 +878,24 @@ useEffect(() => {
     </List>
   </Box>
 </Drawer>
-      {/* Filters */}
-      <div className="panel" style={{ marginBottom: 12 }}>
-        <div style={{ display:'flex', gap:12, alignItems:'center', flexWrap:'wrap' }}>
-          <label>Teacher <select value={teacherFilter || ''} onChange={(e)=> setTeacherFilter(e.target.value || null)} style={{ marginLeft:8 }}><option value="">All</option>{teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
-          <div>Rooms <ChipsFilter items={roomItems} selected={roomsFilter} setSelected={setRoomsFilter} allLabel="All rooms" /></div>
-          <div>Subjects <ChipsFilter items={subjectItems} selected={subjectFilter} setSelected={setSubjectFilter} allLabel="All subjects" /></div>
-          <label style={{ display:'inline-flex', alignItems:'center', gap:6 }}><input type="checkbox" checked={landscape} onChange={(e)=> setLandscape(e.target.checked)} /> Landscape</label>
-          <div style={{ display:'flex', gap:6, marginLeft:'auto' }}>
+      {/* Filters moved into header popover */}
+      <Popover open={Boolean(filtersAnchor)} anchorEl={filtersAnchor} onClose={closeFilters} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }}>
+        <Box sx={{ p: 2, maxWidth: 520 }}>
+          <div style={{ display:'flex', gap:12, alignItems:'center', flexWrap:'wrap' }}>
+            <label>Teacher <select value={teacherFilter || ''} onChange={(e)=> setTeacherFilter(e.target.value || null)} style={{ marginLeft:8 }}><option value="">All</option>{teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
+            <div>Rooms <ChipsFilter items={roomItems} selected={roomsFilter} setSelected={setRoomsFilter} allLabel="All rooms" /></div>
+            <div>Subjects <ChipsFilter items={subjectItems} selected={subjectFilter} setSelected={setSubjectFilter} allLabel="All subjects" /></div>
+            <label style={{ display:'inline-flex', alignItems:'center', gap:6 }}><input type="checkbox" checked={landscape} onChange={(e)=> setLandscape(e.target.checked)} /> Landscape</label>
+          </div>
+          <Divider sx={{ my: 1 }} />
+          <div style={{ display:'flex', gap:6, justifyContent:'flex-end' }}>
             <button onClick={handleBatchTeachersPDF} disabled={progress.running}>Batch: Teachers PDF</button>
             <button onClick={handleBatchTeachersDocx} disabled={progress.running}>Batch: Teachers DOCX</button>
             <button onClick={handleBatchRoomsPDF} disabled={progress.running}>Batch: Rooms PDF</button>
             <button onClick={handleBatchRoomsDocx} disabled={progress.running}>Batch: Rooms DOCX</button>
           </div>
-        </div>
-      </div>
+        </Box>
+      </Popover>
         {view === "timetable" && undoBanner && (
                 <div
                   role="status"
@@ -883,13 +956,10 @@ useEffect(() => {
             teacherId={teacherFilter}
             roomsFilters={roomsFilter}
             subjectFilters={subjectFilter}
-            onEdit={(id) => {/* open edit modal (optional) */}}
+            onEdit={(id) => openEventDialogFor(id)}
             onDelete={(id) => handleDelete(id)}
             onUpdate={(id, next) => handleUpdate(id, next)}   // your validation runs here
-            onCreateFromGrid={({ dayIndex, start, end }) => {
-              // Prefill Add Class modal using the empty cell double-click
-              // e.g., setAddClassOpen(true); setDraft({ dayIndex, start, end })
-            }}
+            onCreateFromGrid={handleCreateFromGrid}
             getViolationClass={getViolationClass}     // keep your weekly-limit + time rules highlighting
             timeConstraints={timeConstraints}
             limitsEnabled={limitsEnabled}
@@ -916,8 +986,11 @@ useEffect(() => {
   onOpenLimits={() => setLimitsModalOpen(true)}
   onOpenFreeSlots={() => setFreeSlotsOpen(true)}
   onOpenTimeConstraints={() => setTimeConstraintsOpen(true)}
+  onOpenConfig={() => setConfigOpen(true)}
 
 />
+
+      <ConfigModal open={configOpen} onClose={() => setConfigOpen(false)} />
 
 <ThemeModal
   open={themeOpen}
@@ -1031,6 +1104,8 @@ useEffect(() => {
     limitsEnabled={limitsEnabled}
     freeSlotsEnabled={freeSlotsEnabled}
     timeConstraints={timeConstraints}
+    initialValues={modalInital}
+    subjects={StoreSubjects}
   />
 
   <ConstraintErrorBar
@@ -1068,6 +1143,53 @@ useEffect(() => {
       breaks={breaks}
       addBreak={addBreak}
       deleteBreak={deleteBreak}
+    />
+    <PrepopulateModal
+      open={prepopulateOpen}
+      onClose={closePrepopulate}
+      teachers={teachers}
+      rooms={rooms}
+      events={events}
+      constraints={constraints}
+      teacherConstraints={teacherConstraints}
+      limitsEnabled={limitsEnabled}
+      timeConstraints={timeConstraints}
+      onRun={(accepted, rejected) => {
+        if (accepted && accepted.length) {
+          setEvents(list => [
+            ...list,
+            ...accepted.map(a => ({ id: nanoid(), ...a, color: randomNiceColor() })),
+          ]);
+        }
+        if (rejected && rejected.length) {
+          // surface constraint messages
+          const msgs = rejected.flatMap(r => (r.messages || []));
+          setEditErrors(msgs);
+          setEditBarOpen(true);
+        }
+      }}
+    />
+    <EventDialog
+      open={eventDialogOpen}
+      event={selectedEvent}
+      onClose={() => setEventDialogOpen(false)}
+      onEdit={(ev) => {
+        // Close details dialog and open AddClassModal for editing
+        setEventDialogOpen(false);
+        setEditingEventId(ev.id);
+        setModalInitial({
+          title: ev.title || "",
+          area: ev.area || "",
+          dayIndex: ev.dayIndex,
+          start: ev.start,
+          end: ev.end,
+          teacherId: ev.teacherId || "",
+          roomId: ev.roomId || "",
+          classSize: ev.classSize || "",
+        });
+        setAddClassOpen(true);
+      }}
+      onDelete={(id) => { handleDelete(id); setEventDialogOpen(false); }}
     />
     <ConstrainEditorModal open={constrainModalOpen} onClose={closeconstrainModal} rooms={rooms} subjects={getSubjects(teachers, events)} constraints={constraints} addConstraint={addConstraint} deleteConstraint={deleteConstraint} />
     <TeacherConstrainModal open={teacherConstrainModalOpen} onClose={closeTeacherConstrain} teachers={teachers} subjects={getSubjects(teachers, events)} constraints={teacherConstraints} addConstraint={addTeacherConstraint} deleteConstraint={deleteTeacherConstraint} />
