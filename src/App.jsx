@@ -38,6 +38,7 @@ import PrepopulateModal from "./components/PrepopulateModal.jsx";
 import EventDialog from "./components/EventDialog.jsx";
 import { getConstraintMessages } from "./utils/constraintMessages.js";
 import HeaderMD3 from "./components/HeaderMD3";
+import SchedulePreview from "./components/SchedulePreview.jsx";
 
 import ManageTeachers from "./components/ManageTeachers";
 import ManageRooms from "./components/ManageRooms";
@@ -293,6 +294,11 @@ const [themeOpen, setThemeOpen] = useState(false);
   const [filtersAnchor, setFiltersAnchor] = useState(null);
   const openFilters = (anchor) => setFiltersAnchor(anchor);
   const closeFilters = () => setFiltersAnchor(null);
+  const [schedulePreview, setSchedulePreview] = useState({ open: false, type: null, id: null });
+
+  const openSchedulePreviewForTeacher = (id) => setSchedulePreview({ open: true, type: 'teacher', id });
+  const openSchedulePreviewForRoom = (id) => setSchedulePreview({ open: true, type: 'room', id });
+  const closeSchedulePreview = () => setSchedulePreview({ open: false, type: null, id: null });
 
   useEffect(() => {
     const onKey = (e) => {
@@ -883,10 +889,24 @@ useEffect(() => {
 </Drawer>
       {/* Filters moved into header popover */}
       <Popover open={Boolean(filtersAnchor)} anchorEl={filtersAnchor} onClose={closeFilters} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }}>
-        <Box sx={{ p: 2, maxWidth: 520 }}>
+        <Box sx={{ p: 2, maxWidth: 640 }}>
           <div style={{ display:'flex', gap:12, alignItems:'center', flexWrap:'wrap' }}>
-            <label>Teacher <select value={teacherFilter || ''} onChange={(e)=> setTeacherFilter(e.target.value || null)} style={{ marginLeft:8 }}><option value="">All</option>{teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
-            <div>Rooms <ChipsFilter items={roomItems} selected={roomsFilter} setSelected={setRoomsFilter} allLabel="All rooms" /></div>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              Teacher
+              <select value={teacherFilter || ''} onChange={(e)=> setTeacherFilter(e.target.value || null)} style={{ marginLeft:8 }}>
+                <option value="">All</option>
+                {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+              {teacherFilter && (
+                <button style={{ marginLeft: 6 }} onClick={() => openSchedulePreviewForTeacher(teacherFilter)}>Preview</button>
+              )}
+            </label>
+            <div>
+              Rooms <ChipsFilter items={roomItems} selected={roomsFilter} setSelected={setRoomsFilter} allLabel="All rooms" />
+              {roomsFilter && roomsFilter.length === 1 && (
+                <button style={{ marginLeft: 6 }} onClick={() => openSchedulePreviewForRoom(roomsFilter[0])}>Preview</button>
+              )}
+            </div>
             <div>Subjects <ChipsFilter items={subjectItems} selected={subjectFilter} setSelected={setSubjectFilter} allLabel="All subjects" /></div>
             <label style={{ display:'inline-flex', alignItems:'center', gap:6 }}><input type="checkbox" checked={landscape} onChange={(e)=> setLandscape(e.target.checked)} /> Landscape</label>
           </div>
@@ -899,6 +919,17 @@ useEffect(() => {
           </div>
         </Box>
       </Popover>
+
+      {/* Schedule preview dialog (teacher or room) */}
+      <SchedulePreview
+        open={schedulePreview.open}
+        onClose={closeSchedulePreview}
+        events={events}
+        teachers={teachers}
+        rooms={rooms}
+        teacherId={schedulePreview.type === 'teacher' ? schedulePreview.id : null}
+        roomId={schedulePreview.type === 'room' ? schedulePreview.id : null}
+      />
         {view === "timetable" && undoBanner && (
                 <div
                   role="status"

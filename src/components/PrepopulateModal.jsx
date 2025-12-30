@@ -82,6 +82,16 @@ export default function PrepopulateModal({
     if (open) reset();
   }, [open, reset]);
 
+  // Filter subjects when a teacher is chosen: if the teacher has non-empty `areas`,
+  // only show those subjects in the dropdown (but still allow freeSolo typing).
+  const filteredSubjects = React.useMemo(() => {
+    if (!teacherId) return Array.isArray(subjects) ? subjects : [];
+    const t = (teachers || []).find(x => x.id === teacherId);
+    if (!t || !Array.isArray(t.areas) || t.areas.length === 0) return Array.isArray(subjects) ? subjects : [];
+    const allowed = new Set(t.areas.map(a => String(a).trim()).filter(Boolean));
+    return (Array.isArray(subjects) ? subjects : []).filter(s => allowed.has(String(s)));
+  }, [teacherId, teachers, subjects]);
+
   const toggleDay = (i) => setDaysPicked((list) => (list.includes(i) ? list.filter((d) => d !== i) : [...list, i].sort()));
 
   const computeCandidates = React.useCallback(() => {
@@ -91,44 +101,74 @@ export default function PrepopulateModal({
     const candidates = [];
 
     if (strategy === "fixed") {
-      for (const dayIndex of daysPicked) {
-        const sMin = toMinutes(startTime);
-        if (isNaN(sMin)) continue;
+      const sMin = toMinutes(startTime);
+      if (!isNaN(sMin) && daysPicked && daysPicked.length > 0) {
         const eMin = sMin + len;
         const dayStart = START_HOUR * 60;
         const dayEnd = END_HOUR * 60;
-        if (sMin < dayStart || eMin > dayEnd) continue;
-        candidates.push({
-          title: subject || "Lesson",
-          area: subject || "",
-          dayIndex,
-          start: minutesToHHMM(sMin),
-          end: minutesToHHMM(eMin),
-          teacherId: teacher || "",
-          roomId: room || "",
-          classSize: 0,
-        });
+        if (!(sMin < dayStart || eMin > dayEnd)) {
+          // Distribute `count` lessons across the selected days so each day
+          // receives at least one lesson before any day receives a second.
+          const total = Math.max(1, Number(count) || 1);
+          for (let i = 0; i < total; i++) {
+            const dayIndex = daysPicked[i % daysPicked.length];
+            candidates.push({
+              title: subject || "Lesson",
+              area: subject || "",
+              dayIndex,
+              start: minutesToHHMM(sMin),
+              end: minutesToHHMM(eMin),
+              teacherId: teacher || "",
+              roomId: room || "",
+              classSize: 0,
+            });
+          }
+        }
       }
     } else {
-      const raw = suggestFreeSlots({
-        events,
-        teacherId: teacher,
-        roomId: room,
-        dayIndex: startDayIndex,
-        classLenMins: len,
-        limit: Number(count) || 10,
-      });
-      for (const s of raw) {
-        candidates.push({
-          title: subject || "Lesson",
-          area: subject || "",
-          dayIndex: s.dayIndex,
-          start: s.start,
-          end: s.end,
-          teacherId: teacher || "",
-          roomId: room || "",
-          classSize: 0,
+      // For each day (starting at `startDayIndex`) request free slots constrained to that day,
+      // then round-robin pick up to `count` so each day receives at least one before repeats.
+      const buckets = new Map();
+      for (let i = 0; i < DAYS.length; i++) {
+        const di = (startDayIndex + i) % DAYS.length;
+        const daySlots = suggestFreeSlots({
+          events,
+          teacherId: teacher,
+          roomId: room,
+          dayIndex: di,
+          classLenMins: len,
+          limit: Math.max(1, Number(count) || 1),
         });
+        if (daySlots && daySlots.length > 0) buckets.set(di, daySlots.slice());
+      }
+
+      const dayOrder = Array.from(buckets.keys());
+      const total = Math.max(1, Number(count) || 1);
+      const used = [];
+
+      if (dayOrder.length === 0) {
+        // no per-day slots found; fallback to global search
+        const raw = suggestFreeSlots({ events, teacherId: teacher, roomId: room, dayIndex: null, classLenMins: len, limit: total });
+        for (const s of raw.slice(0, total)) used.push(s);
+      } else {
+        let idx = 0;
+        while (used.length < total && dayOrder.length > 0) {
+          const di = dayOrder[idx % dayOrder.length];
+          const arr = buckets.get(di) || [];
+          if (arr.length > 0) {
+            used.push(arr.shift());
+          }
+          if (!arr.length) {
+            const rm = dayOrder.indexOf(di);
+            if (rm !== -1) dayOrder.splice(rm, 1);
+            if (rm <= idx && idx > 0) idx--;
+          }
+          idx++;
+        }
+      }
+
+      for (const s of used) {
+        candidates.push({ title: subject || "Lesson", area: subject || "", dayIndex: s.dayIndex, start: s.start, end: s.end, teacherId: teacher || "", roomId: room || "", classSize: 0 });
       }
     }
 
@@ -188,7 +228,7 @@ export default function PrepopulateModal({
           </Stack>
 
           <Autocomplete
-            options={subjects}
+            options={filteredSubjects}
             value={subject || ""}
             onChange={(_, v) => setSubject(v || "")}
             freeSolo

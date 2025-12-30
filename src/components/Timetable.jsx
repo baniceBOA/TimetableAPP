@@ -5,6 +5,7 @@ import {
 } from "../constants";
 import { hourLabel, overlaps, timeToCol, colToTime } from "../utils/time";
 import DraggableEvent from "./DraggableEvent";
+import { conflictsForTeacher, conflictsForRoom, conflictsWithBreaks } from '../utils/conflict';
 
 // MUI
 import {
@@ -423,13 +424,39 @@ export default function Timetable({
                     : undefined,
                 })}
               >
-                <DraggableEvent
-                  event={enriched}
-                  layout={{ colWidth: colWidth || 1 }}
-                  onUpdate={onUpdate}
-                  onEdit={onEdit}
-                  onDelete={onDelete}
-                />
+                {
+                  (() => {
+                    const tConf = conflictsForTeacher(events, enriched.teacherId, enriched.dayIndex, enriched.start, enriched.end, enriched.id);
+                    const rConf = conflictsForRoom(events, enriched.roomId, enriched.dayIndex, enriched.start, enriched.end, enriched.id);
+                    const bConf = conflictsWithBreaks(breaks, enriched.dayIndex, enriched.start, enriched.end);
+                    const union = new Set([...(tConf || []).map(e=>e.id), ...(rConf || []).map(e=>e.id)]);
+                    const collisionCount = union.size + (bConf ? bConf.length : 0);
+                    // build detailed lines for each conflicting event
+                    const conflictEvents = [].concat(tConf || [], rConf || []);
+                    const uniqueConfMap = new Map();
+                    for (const ce of conflictEvents) {
+                      if (ce && ce.id != null) uniqueConfMap.set(ce.id, ce);
+                    }
+                    const collisionDetails = Array.from(uniqueConfMap.values()).map((ce) => {
+                      const tname = (teachers || []).find(t => t.id === ce.teacherId)?.name || ce.teacherId || '';
+                      const rname = (rooms || []).find(r => r.id === ce.roomId)?.name || ce.roomId || '';
+                      return `${ce.title || 'Untitled'} • ${ce.start}–${ce.end}${tname ? ` • ${tname}` : ''}${rname ? ` • ${rname}` : ''}`;
+                    });
+                    if (bConf && bConf.length > 0) collisionDetails.push(...(bConf.map(b=>`Break overlap: ${b.label || (b.start && b.end ? `${b.start}-${b.end}` : '')}`)));
+                    return (
+                      <DraggableEvent
+                        event={enriched}
+                        layout={{ colWidth: colWidth || 1 }}
+                        onUpdate={onUpdate}
+                        onEdit={onEdit}
+                        onDelete={onDelete}
+                        onOpenDetails={(ev) => onEdit?.(ev.id)}
+                        collisionCount={collisionCount}
+                        collisionDetails={collisionDetails}
+                      />
+                    );
+                  })()
+                }
               </Box>
             );
           })}

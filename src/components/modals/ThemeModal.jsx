@@ -30,7 +30,7 @@ export default function ThemeModal({ open, onClose, value, onSave }) {
     backgroundPaper: "#0B1220",
     textPrimary: "#E5E7EB",
     textSecondary: "#94A3B8",
-    borderRadius: 12,
+    borderRadius: 4,
     typographyScale: 1.0,
     _previewTitle: "Timetable",
     _previewSubtitle: "Weekly schedule",
@@ -142,10 +142,10 @@ export default function ThemeModal({ open, onClose, value, onSave }) {
             <div style={{ display: "grid", gap: 16 }}>
               <div>
                 <Typography variant="body2">
-                  Border radius: {form.borderRadius ?? 12}px
+                  Border radius: {form.borderRadius ?? 4}px
                 </Typography>
                 <Slider
-                  value={form.borderRadius ?? 12}
+                  value={form.borderRadius ?? 4}
                   min={0} max={20} step={1}
                   onChange={(_, v) => update("borderRadius", v)}
                 />

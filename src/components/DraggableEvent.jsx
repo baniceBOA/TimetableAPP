@@ -3,7 +3,7 @@ import { DAYS, TOTAL_COLS, ROW_HEIGHT } from "../constants";
 import { timeToCol, colToTime } from "../utils/time";
 import EventItem from "./EventItem";
 function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
-export default function DraggableEvent({ event, layout, onUpdate, onEdit, onDelete }){
+export default function DraggableEvent({ event, layout, onUpdate, onEdit, onDelete, onOpenDetails, collisionCount = 0, collisionDetails = [] }){
   const movingRef = useRef(null);
   const resizingRef = useRef(null);
   const earliestCol = 3; const latestCol = 3 + TOTAL_COLS;
@@ -40,7 +40,7 @@ export default function DraggableEvent({ event, layout, onUpdate, onEdit, onDele
     <div className="event draggable" style={{ gridColumn: `${startCol} / ${endCol}`, gridRow: event.dayIndex + 1, backgroundColor: event.color }} onPointerDown={onPointerDownMove}>
       <div className="resize-handle left" onPointerDown={(e)=> startResize(e,'left')} />
       <div className="resize-handle right" onPointerDown={(e)=> startResize(e,'right')} />
-      <EventItem event={event} onEdit={onEdit} onDelete={onDelete} />
+      <EventItem event={event} onEdit={onEdit} onDelete={onDelete} onOpenDetails={onOpenDetails} collisionCount={collisionCount} collisionDetails={collisionDetails} />
     </div>
   );
 }

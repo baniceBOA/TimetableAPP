@@ -10,7 +10,7 @@ const md3Palette = {
 };
 
 const md3Custom = {
-  tertiary: { main: "#F953C6", contrastText: "#0B1220" },
+  tertiary: { main: "#1ed2f1ff", contrastText: "#0B1220" },
   // If you later want MD3 container roles, add them here:
   // primaryContainer: "#xxxxxx", onPrimaryContainer: "#xxxxxx",
   // tertiaryContainer: "#xxxxxx", onTertiaryContainer: "#xxxxxx",
@@ -32,7 +32,7 @@ export const md3Theme = createTheme({
   // Expose your custom MD3-like tokens (e.g., tertiary)
   custom: md3Custom,
 
-  shape: { borderRadius: 12 }, // MD3-ish rounding
+  shape: { borderRadius: 3 }, // MD3-ish rounding (default 3px)
 
   components: {
     MuiAppBar: {
@@ -61,7 +61,7 @@ export const md3Theme = createTheme({
     MuiCard: {
       styleOverrides: {
         root: (theme) => ({
-          borderRadius: 12,
+          borderRadius: (theme?.shape?.borderRadius) ?? 3,
           backgroundColor: (theme.vars || theme).palette.background.paper,
           border: `1px solid ${((theme.vars || theme).palette.divider) || "#1F2937"}`,
         }),

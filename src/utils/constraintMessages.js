@@ -47,6 +47,20 @@ export function getConstraintMessages({
       msgs.push(`Teacher conflict: ${teacherName} already booked on ${dayName} ${nextEvent.start}–${nextEvent.end}.`);
     }
   }
+
+  // Enforce teacher allowed subjects (if teacher.areas is non-empty)
+  if (hasSubject) {
+    for (const tid of teacherIds) {
+      const teacher = (teachers || []).find(t => t.id === tid) || null;
+      if (teacher && Array.isArray(teacher.areas) && teacher.areas.length > 0) {
+        const allowed = teacher.areas.map(a => String(a).trim()).filter(Boolean);
+        if (!allowed.includes((nextEvent.area || "").trim())) {
+          const teacherName = teacher.name || tid;
+          msgs.push(`Teacher ${teacherName} is not assigned to subject "${nextEvent.area}".`);
+        }
+      }
+    }
+  }
   const rConf = conflictsForRoom(events, nextEvent.roomId, nextEvent.dayIndex, nextEvent.start, nextEvent.end, nextEvent.id || null);
   if (rConf.length) {
     msgs.push(`Room conflict: already booked on ${dayName} ${nextEvent.start}–${nextEvent.end}.`);

@@ -140,6 +140,23 @@ export default function AddClassModal({
     }
   }, [form.area, form.dayIndex, form.start, form.end, timeConstraints]);
 
+  // Filter subjects when teachers are chosen: if selected teacher(s) have non-empty
+  // `areas`, only show subjects allowed by all selected teachers (intersection).
+  const filteredSubjects = React.useMemo(() => {
+    const all = Array.isArray(subjects) ? subjects.slice() : [];
+    const tids = Array.isArray(form.teacherIds) ? form.teacherIds : (form.teacherId ? [form.teacherId] : []);
+    if (!tids || tids.length === 0) return all;
+    let result = all;
+    for (const tid of tids) {
+      const t = (teachers || []).find(x => x.id === tid);
+      if (t && Array.isArray(t.areas) && t.areas.length > 0) {
+        const allowed = new Set(t.areas.map(a => String(a).trim()).filter(Boolean));
+        result = result.filter(s => allowed.has(String(s)));
+      }
+    }
+    return result;
+  }, [form.teacherIds, form.teacherId, teachers, subjects]);
+
   const duration = React.useMemo(() => {
     const s = toMinutes(form.start);
     const e = toMinutes(form.end);
@@ -220,7 +237,7 @@ export default function AddClassModal({
           <TextField label="Title" value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} fullWidth />
 
           <Autocomplete
-            options={subjects}
+            options={filteredSubjects}
             value={form.area || ""}
             onChange={(_, v) => setForm((f) => ({ ...f, area: v || "" }))}
             freeSolo

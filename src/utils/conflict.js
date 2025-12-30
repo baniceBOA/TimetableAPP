@@ -12,6 +12,10 @@ export function conflictsForRoom(events, roomId, dayIndex, start, end, ignoreEve
   if (!roomId) return [];
   return events.filter(e => e.roomId===roomId && e.dayIndex===dayIndex && e.id!==ignoreEventId && rangesOverlap(start, end, e.start, e.end));
 }
+export function conflictsWithBreaks(breaks = [], dayIndex, start, end) {
+  if (!breaks || breaks.length === 0) return [];
+  return breaks.filter(b => typeof b.dayIndex === 'number' && b.dayIndex === dayIndex && rangesOverlap(start, end, b.start, b.end));
+}
 export function checkRoomCapacity({ rooms = [], roomId, requiredSize }) {
   if (!roomId || !Number.isFinite(requiredSize)) return { ok: true, message: "" };
   const room = rooms.find(r => r.id === roomId);

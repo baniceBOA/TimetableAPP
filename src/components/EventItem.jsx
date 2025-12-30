@@ -3,6 +3,7 @@ import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
+import Chip from '@mui/material/Chip';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useTheme } from '@mui/material/styles';
@@ -20,6 +21,8 @@ export default function EventItem({
   onDelete,
   onOpenDetails,
   conflict, // 'teacher' | 'room' | 'both' | null
+  collisionCount = 0,
+  collisionDetails = [],
 }) {
   const theme = useTheme();
 
@@ -99,6 +102,10 @@ export default function EventItem({
         gap: 0.5,
         px: 1.25,
         py: 0.75,
+        width: '100%',
+        height: '100%',
+        minHeight: 0,
+        boxSizing: 'border-box',
         borderRadius: (theme) => theme.shape.borderRadius,
         border: conflictBorder,
         bgcolor: event.color || (theme.vars || theme).palette.primary.main,
@@ -110,6 +117,27 @@ export default function EventItem({
         transition: isDragging ? undefined : 'box-shadow 120ms ease',
       }}
     >
+      {collisionCount > 0 && (
+        <Tooltip
+          title={
+            Array.isArray(collisionDetails) && collisionDetails.length > 0
+              ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {collisionDetails.map((d, i) => <div key={i}>{d}</div>)}
+                </div>
+              )
+              : 'Collision'
+          }
+        >
+          <Chip
+            label={String(collisionCount)}
+            size="small"
+            color="error"
+            onClick={(e) => { e.stopPropagation(); }}
+            sx={{ position: 'absolute', top: 6, left: 6, height: 20, fontWeight: 700, zIndex: 6 }}
+          />
+        </Tooltip>
+      )}
       {/* Left resize handle */}
       <Box
         ref={setLeftRef}
@@ -138,46 +166,13 @@ export default function EventItem({
         onClick={(e) => e.stopPropagation()}
       />
 
-      <Typography variant="subtitle2" sx={{ fontWeight: 700, lineHeight: 1.25 }}>
-        {event.title || 'Untitled'}
+      <Typography variant="subtitle2" sx={{ fontWeight: 700, lineHeight: 1.25 }} title={event.title || 'Untitled'}>
+        {(event.title || 'Untitled').slice(0, 4)}
       </Typography>
 
-      {(event.teacherName || event.roomName) && (
-        <Typography variant="caption" sx={{ opacity: 0.85 }}>
-          {event.teacherName}{event.teacherName && event.roomName ? ' • ' : ''}{event.roomName}
-        </Typography>
-      )}
+      {/* teacher and room labels removed as requested */}
 
-      {(onEdit || onDelete) && (
-        <Box
-          sx={{
-            position: 'absolute',
-            right: 4,
-            bottom: 2,
-            display: 'flex',
-            gap: 0.5,
-          }}
-        >
-          {onEdit && (
-            <IconButton
-              size="small"
-              color="inherit"
-              onClick={(e) => { e.stopPropagation(); onEdit(event); }}
-            >
-              <EditIcon fontSize="inherit" />
-            </IconButton>
-          )}
-          {onDelete && (
-            <IconButton
-              size="small"
-              color="inherit"
-              onClick={(e) => { e.stopPropagation(); onDelete(event.id); }}
-            >
-              <DeleteIcon fontSize="inherit" />
-            </IconButton>
-          )}
-        </Box>
-      )}
+      {/* edit/delete controls removed */}
     </Paper>
   );
 }

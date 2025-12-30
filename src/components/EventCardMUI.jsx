@@ -3,9 +3,8 @@ import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import Tooltip from "@mui/material/Tooltip";
-import IconButton from "@mui/material/IconButton";
-import EditIcon from "@mui/icons-material/Edit";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import Chip from '@mui/material/Chip';
+// edit/delete buttons removed per UX request
 
 /**
  * Compact event card:
@@ -20,6 +19,9 @@ export default function EventCardMUI({
   violationClass = "",
   onEdit,
   onDelete,
+  onOpenDetails,
+  collisionCount = 0,
+  collisionDetails = [],
 }) {
   const title = event.title || "";
   const roomName = room?.name || "";
@@ -48,14 +50,40 @@ export default function EventCardMUI({
   return (
     <Paper
       elevation={0}
+      onClick={() => onOpenDetails?.(event) || onEdit?.(event.id)}
       sx={(theme) => ({
         bgcolor: bg,
-        borderRadius: 1.25,
+        position: 'relative',
+        borderRadius: (theme?.shape?.borderRadius) ?? 3,
         px: 1,
         py: 0.5,
+        width: '100%',
+        height: '100%',
+        boxSizing: 'border-box',
         ...outlineSx(theme),
       })}
     >
+      {collisionCount > 0 && (
+        <Tooltip
+          title={
+            Array.isArray(collisionDetails) && collisionDetails.length > 0
+              ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {collisionDetails.map((d, i) => <div key={i}>{d}</div>)}
+                </div>
+              )
+              : 'Collision'
+          }
+        >
+          <Chip
+            label={String(collisionCount)}
+            size="small"
+            color="error"
+            onClick={(e) => { e.stopPropagation(); }}
+            sx={{ position: 'absolute', top: 6, left: 6, height: 20, fontWeight: 700, zIndex: 6 }}
+          />
+        </Tooltip>
+      )}
       <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
         <Stack direction="column" spacing={0} sx={{ flex: 1, textAlign: "center" }}>
           <Typography
@@ -63,36 +91,12 @@ export default function EventCardMUI({
             sx={{ fontWeight: 700, lineHeight: 1.2 }}
             title={title}
           >
-            {title}
+            {title.slice(0, 4)}
           </Typography>
-          {event.teacherName && (
-            <Typography variant="caption" sx={{ opacity: 0.9 }} title={event.teacherName}>
-              {event.teacherName}
-            </Typography>
-          )}
-          {roomName && (
-            <Typography
-              variant="caption"
-              sx={{ fontStyle: "italic", opacity: 0.85 }}
-              title={roomName}
-            >
-              {roomName}
-            </Typography>
-          )}
+          {/* teacher and room labels removed as requested */}
         </Stack>
 
-        <Stack direction="row" spacing={0.5} alignItems="center">
-          <Tooltip title="Edit">
-            <IconButton size="small" onClick={onEdit}>
-              <EditIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Delete">
-            <IconButton size="small" onClick={onDelete}>
-              <DeleteOutlineIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        </Stack>
+        {/* edit/delete controls removed */}
       </Stack>
     </Paper>
   );

@@ -16,6 +16,7 @@ import {
 
 import DroppableSlot from './DroppableSlot';
 import EventItem from './EventItem';
+import { conflictsForTeacher, conflictsForRoom, conflictsWithBreaks } from '../utils/conflict';
 
 import {
   DAYS, START_HOUR, END_HOUR, SLOTS_PER_HOUR, TOTAL_COLS,
@@ -446,6 +447,30 @@ function closeDetails() {
                     onDelete={onDelete}
                     conflict={conflict}
                     onOpenDetails={openDetails}
+                    collisionCount={(() => {
+                        const tConf = conflictsForTeacher(events, ev.teacherId, ev.dayIndex, ev.start, ev.end, ev.id);
+                        const rConf = conflictsForRoom(events, ev.roomId, ev.dayIndex, ev.start, ev.end, ev.id);
+                        const bConf = conflictsWithBreaks(breaks, ev.dayIndex, ev.start, ev.end);
+                        const union = new Set([...(tConf||[]).map(e=>e.id), ...(rConf||[]).map(e=>e.id)]);
+                        return union.size + (bConf ? bConf.length : 0);
+                    })()}
+                    collisionDetails={(() => {
+                        const tConf = conflictsForTeacher(events, ev.teacherId, ev.dayIndex, ev.start, ev.end, ev.id);
+                        const rConf = conflictsForRoom(events, ev.roomId, ev.dayIndex, ev.start, ev.end, ev.id);
+                        const bConf = conflictsWithBreaks(breaks, ev.dayIndex, ev.start, ev.end);
+                        const conflictEvents = [].concat(tConf || [], rConf || []);
+                        const uniqueConfMap = new Map();
+                        for (const ce of conflictEvents) {
+                          if (ce && ce.id != null) uniqueConfMap.set(ce.id, ce);
+                        }
+                        const details = Array.from(uniqueConfMap.values()).map((ce) => {
+                          const tname = (teachers || []).find(t => t.id === ce.teacherId)?.name || ce.teacherId || '';
+                          const rname = (rooms || []).find(r => r.id === ce.roomId)?.name || ce.roomId || '';
+                          return `${ce.title || 'Untitled'} • ${ce.start}–${ce.end}${tname ? ` • ${tname}` : ''}${rname ? ` • ${rname}` : ''}`;
+                        });
+                        if (bConf && bConf.length > 0) details.push(...(bConf.map(b=>`Break overlap: ${b.label || (b.start && b.end ? `${b.start}-${b.end}` : '')}`)));
+                        return details;
+                    })()}
                   />
                 </Box>
               );

@@ -13,11 +13,11 @@ export function makeTheme(opts = {}) {
     mode = "light",
     primary = "#2D8CFF",
     secondary = "#59C173",
-    backgroundDefault = mode === "dark" ? "#0F172A" : "#F5F7FA",
-    backgroundPaper   = mode === "dark" ? "#0B1220" : "#FFFFFF",
+    backgroundDefault = mode === "dark" ? "#f7c216ff" : "#F5F7FA",
+    backgroundPaper   = mode === "dark" ? "#224488ff" : "#FFFFFF",
     textPrimary       = mode === "dark" ? "#E5E7EB" : "#0B1220",
-    textSecondary     = mode === "dark" ? "#94A3B8" : "#4B5563",
-    borderRadius = 4,
+    textSecondary     = mode === "dark" ? "#f0f1f3ff" : "#4B5563",
+    borderRadius = 3,
     typographyScale = 1.0,
   } = opts;
 

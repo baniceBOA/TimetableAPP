@@ -1,6 +1,7 @@
 import * as React from "react";
 import Box from "@mui/material/Box";
 import Alert from '@mui/material/Alert';
+import Snackbar from '@mui/material/Snackbar';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
 import ScreenRotationIcon from '@mui/icons-material/ScreenRotation';
@@ -28,6 +29,7 @@ import { DAYS, DAY_LABEL_COL_WIDTH, ROOM_LABEL_COL_WIDTH, TOTAL_COLS, START_HOUR
 import { timeToCol, colToTime } from '../utils/time';
 
 import EventCardMUI from "./EventCardMUI.jsx";
+import { conflictsForTeacher, conflictsForRoom, conflictsWithBreaks } from '../utils/conflict';
 import { useConfig } from "../utils/configStore";
 
 
@@ -74,6 +76,7 @@ export default function TimetableMUI({
 
   const theme = useTheme();
   const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
+  const [blockMsg, setBlockMsg] = React.useState(null);
 
   // Header hour labels
   const hours = React.useMemo(() => Array.from({ length: totalSlots }, (_, i) => slotLabel(i)), [totalSlots]);
@@ -268,6 +271,15 @@ export default function TimetableMUI({
     const fmt = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 
     const next = { ...ev, dayIndex: destDay, roomId: roomId || ev.roomId, start: fmt(startMin), end: fmt(endMin) };
+    // Prevent placing an event into a break period
+    const overlappingBreaks = conflictsWithBreaks(breaks, destDay, next.start, next.end);
+    if (overlappingBreaks && overlappingBreaks.length > 0) {
+      // Abort update — time overlaps a break and cannot host a lesson
+      const labels = overlappingBreaks.map(b => b.label || 'Break').filter(Boolean);
+      const msg = labels.length > 0 ? `Cannot place lesson during break: ${labels.join(', ')}` : 'Cannot place lesson during a break period.';
+      setBlockMsg(msg);
+      return;
+    }
     onUpdate?.(ev.id, next);
   }
 
@@ -301,10 +313,10 @@ export default function TimetableMUI({
     alignItems: "stretch",
   });
 
-  const breakBandSx = (color) => ({
+  const breakBandSx = (color) => (theme) => ({
     position: "absolute",
     inset: 4,
-    borderRadius: 1,
+    borderRadius: (theme?.shape?.borderRadius) ?? 3,
     bgcolor: color || "action.selected",
     opacity: 0.85,
     outline: "1px solid rgba(0,0,0,.08)",
@@ -332,6 +344,24 @@ export default function TimetableMUI({
         : undefined,
       zIndex: isDragging ? 1000 : 1,
     };
+    // compute collision count for preview/drag overlay too (include overlaps with breaks)
+    const tConf = conflictsForTeacher(events, event.teacherId, event.dayIndex, event.start, event.end, event.id);
+    const rConf = conflictsForRoom(events, event.roomId, event.dayIndex, event.start, event.end, event.id);
+    const bConf = conflictsWithBreaks(breaks, event.dayIndex, event.start, event.end);
+    const union = new Set([...(tConf || []).map(e=>e.id), ...(rConf || []).map(e=>e.id)]);
+    const collisionCount = union.size + (bConf ? bConf.length : 0);
+    // Build detailed lines for each conflicting event (unique by id)
+    const conflictEvents = [].concat(tConf || [], rConf || []);
+    const uniqueConfMap = new Map();
+    for (const ce of conflictEvents) {
+      if (ce && ce.id != null) uniqueConfMap.set(ce.id, ce);
+    }
+    const collisionDetails = Array.from(uniqueConfMap.values()).map((ce) => {
+      const tname = teacherById.get(ce.teacherId)?.name || ce.teacherId || '';
+      const rname = roomById.get(ce.roomId)?.name || ce.roomId || '';
+      return `${ce.title || 'Untitled'} • ${ce.start}–${ce.end}${tname ? ` • ${tname}` : ''}${rname ? ` • ${rname}` : ''}`;
+    });
+    if (bConf && bConf.length > 0) collisionDetails.push(...(bConf.map(b=>`Break overlap: ${b.label || (b.start && b.end ? `${b.start}-${b.end}` : '')}`)));
     return (
       <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
         <EventCardMUI
@@ -341,6 +371,9 @@ export default function TimetableMUI({
           violationClass={violationClassOf(event)}
           onEdit={() => onEdit?.(event.id)}
           onDelete={() => onDelete?.(event.id)}
+          onOpenDetails={(ev) => onEdit?.(ev.id)}
+          collisionCount={collisionCount}
+          collisionDetails={collisionDetails}
         />
       </div>
     );
@@ -392,6 +425,34 @@ export default function TimetableMUI({
           }} />;
         })}
 
+        {/* Break bands (span contiguous slots) */}
+        {(() => {
+          const slots = breakByDaySlot[dayIndex] || [];
+          const bands = [];
+          for (let s = 0; s < totalSlots; s++) {
+            const b = slots[s];
+            if (!b) continue;
+            let start = s;
+            let end = s + 1;
+            while (end < totalSlots) {
+              const nb = slots[end];
+              const same = nb && (nb === b || (nb.start === b.start && nb.end === b.end && nb.label === b.label));
+              if (!same) break;
+              end++;
+            }
+            bands.push({ start, end, b });
+            s = end - 1;
+          }
+          return bands.map((bb, i) => (
+            <Box
+              key={`break-${dayIndex}-${roomIndex}-${i}`}
+              sx={{ gridColumn: `${bb.start + 3} / ${bb.end + 3}`, gridRow: 1, p: 0, zIndex: 0, position: 'relative', height: '100%' }}
+            >
+              <Box sx={breakBandSx(bb.b.color)} />
+            </Box>
+          ));
+        })()}
+
         {/* Events for this room/day (positioned by grid columns) */}
         {(() => {
           const slots = eventsByDayRoomSlot[dayIndex]?.[roomIndex] || [];
@@ -406,6 +467,17 @@ export default function TimetableMUI({
               ? ev.teacherIds.map(id => teacherById.get(id)?.name || id).join(', ')
               : (teacherById.get(ev.teacherId)?.name || '');
             const enriched = { ...ev, teacherName };
+            // compute collisions for this event (post-update check)
+            const tConf = conflictsForTeacher(events, ev.teacherId, ev.dayIndex, ev.start, ev.end, ev.id);
+            const rConf = conflictsForRoom(events, ev.roomId, ev.dayIndex, ev.start, ev.end, ev.id);
+            const bConf = conflictsWithBreaks(breaks, ev.dayIndex, ev.start, ev.end);
+            const union = new Set([...(tConf || []).map(e=>e.id), ...(rConf || []).map(e=>e.id)]);
+            const collisionCount = union.size + (bConf ? bConf.length : 0);
+            const collisionDetails = [];
+            if (tConf && tConf.length > 0) collisionDetails.push(`Teacher conflict (${tConf.length})`);
+            if (rConf && rConf.length > 0) collisionDetails.push(`Room conflict (${rConf.length})`);
+            if (bConf && bConf.length > 0) collisionDetails.push(...(bConf.map(b=>`Break overlap: ${b.label || b.start || ''}`)));
+
             return (
               <Box
                 key={`evt-${ev.id}`}
@@ -416,8 +488,11 @@ export default function TimetableMUI({
                   teacher={teacherById.get(ev.teacherId)}
                   room={roomById.get(ev.roomId)}
                   violationClass={violationClassOf(ev)}
-                  onEdit={() => onEdit?.(ev.id)}
-                  onDelete={() => onDelete?.(ev.id)}
+                      onEdit={() => onEdit?.(ev.id)}
+                      onDelete={() => onDelete?.(ev.id)}
+                      onOpenDetails={(e) => onEdit?.(e.id)}
+                  collisionCount={collisionCount}
+                  collisionDetails={collisionDetails}
                 />
               </Box>
             );
@@ -544,6 +619,16 @@ export default function TimetableMUI({
           ) : null}
         </DragOverlay>
       </DndContext>
+      <Snackbar
+        open={!!blockMsg}
+        onClose={() => setBlockMsg(null)}
+        autoHideDuration={4000}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert onClose={() => setBlockMsg(null)} severity="warning">
+          {blockMsg}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }
